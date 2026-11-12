@@ -5,7 +5,7 @@ import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.widget.ScrollView
+import android.widget.HorizontalScrollView
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -159,10 +159,15 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         heading.addView(subtitle)
         listPanel.addView(heading)
 
-        val filterScroll = ScrollView(activity).apply {
+        val filterScroll = HorizontalScrollView(activity).apply {
             isHorizontalScrollBarEnabled = false
+            isFillViewport = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            addView(countryFilters)
+            isSmoothScrollingEnabled = true
+            addView(countryFilters, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
         }
         listPanel.addView(filterScroll)
 
@@ -355,7 +360,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         val selected = all.indexOf(current).coerceAtLeast(0)
         val labels = all.map { ch ->
             val prefix = if (ch == current) "✓ NOW PLAYING  •  " else ""
-            "$prefix${ch.name} (${ch.country})"
+            "$prefix${ch.name}"
         }.toTypedArray()
         AlertDialog.Builder(activity)
              .setTitle("TV Channels")
@@ -440,9 +445,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         val extras = all.map { it.country }.distinct()
             .filter { it !in listOf("PK", "IN", "BD", "SA", "AF", "USR", "OTHER") }
             .sorted()
-        if (extras.isNotEmpty()) {
-            addFilterButton(countryFilters, "MORE ▾") { showMoreCountries(extras) }
+        extras.forEach { code ->
+            addCountryChip(code, countryFlag(code), countryLabel(code))
         }
+        if (all.any { it.country == "OTHER" }) addCountryChip("OTHER", "🌍", "Other")
         if (all.any { it.country == "USR" }) addCountryChip("USR", "📂", "My")
         refreshCountryChips()
     }
@@ -570,8 +576,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         adapter.clear()
         adapter.addAll(shown.map {
-            val label = countryLabel(it.country)
-            if (it == current) "✓ ${it.name}  •  $label — PLAYING" else "${it.name}  •  $label"
+            if (it == current) "✓ ${it.name}  — PLAYING" else it.name
         })
         adapter.notifyDataSetChanged()
         if (::countryFilters.isInitialized) refreshCountryChips()
@@ -619,6 +624,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             }
         }
         return out
+    }
+
+    private fun countryFlag(code: String): String {
+        val c = code.uppercase()
+        if (c.length != 2 || c.any { it !in 'A'..'Z' }) return "🌍"
+        val points = c.map { 0x1F1E6 + (it - 'A') }
+        return String(Character.toChars(points[0])) + String(Character.toChars(points[1]))
     }
 
     private fun countryLabel(code: String): String = when (code.uppercase()) {
