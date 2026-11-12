@@ -13,7 +13,6 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import io.github.edsuns.adfilter.AdFilter
 
 // Fullscreen video support + popup handling
 class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
@@ -75,9 +74,6 @@ object WebFactory {
         s.javaScriptCanOpenWindowsAutomatically = true
         s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
-        val filter = AdFilter.get()
-        filter.setupWebView(wv)
-
         wv.webChromeClient = chrome
         wv.webViewClient = object : WebViewClient() {
 
@@ -85,15 +81,12 @@ object WebFactory {
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
-                // First apply EasyList/AdGuard-compatible native network rules.
-                val nativeResponse = try {
-                    filter.shouldIntercept(view, request).resourceResponse
-                } catch (_: Exception) {
-                    null
+                // Brave's native adblock-rust engine checks EasyList/uBlock-compatible rules.
+                if (BraveAdBlock.shouldBlock(view, request)) {
+                    return BraveAdBlock.emptyResponse()
                 }
-                if (nativeResponse != null) return nativeResponse
 
-                // Retain the app's fast emergency rules as a second layer.
+                // Keep lightweight emergency rules as a fallback if a list is unavailable.
                 return if (AdBlock.isBlocked(request.url.toString())) {
                     AdBlock.empty()
                 } else {
@@ -115,19 +108,13 @@ object WebFactory {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                try {
-                    filter.performScript(view, url)
-                } catch (_: Exception) {
-                }
+                BraveAdBlock.rememberPage(view, url)
                 view.evaluateJavascript(AdBlock.JS, null)
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
                 super.onPageFinished(view, url)
-                try {
-                    filter.performScript(view, url)
-                } catch (_: Exception) {
-                }
+                BraveAdBlock.injectCosmetics(view, url)
                 view.evaluateJavascript(AdBlock.JS, null)
                 onLoaded()
             }
