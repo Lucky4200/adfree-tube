@@ -16,6 +16,9 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - name: Install Android 17 SDK Platform 37.0
+        run: sdkmanager --channel=1 --install "platforms;android-37.0" "build-tools;37.0.0"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.5.0
