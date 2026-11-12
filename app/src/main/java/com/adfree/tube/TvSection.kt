@@ -373,6 +373,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
 
     private fun play(ch: Channel) {
         current = ch
+        applyFilter()
         urlIdx = 0
         startUrl()
     }
