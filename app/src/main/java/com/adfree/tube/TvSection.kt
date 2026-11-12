@@ -47,6 +47,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private lateinit var playerContainer: FrameLayout
     private lateinit var fullscreenButton: Button
     private lateinit var channelsButton: Button
+    private lateinit var countryFilters: LinearLayout
+    private lateinit var searchRow: LinearLayout
+    private lateinit var searchToggle: TextView
+    private val countryButtons = LinkedHashMap<String, TextView>()
     private var isFullscreen = false
     private val uiHandler = Handler(Looper.getMainLooper())
     private val hideChannelButton = Runnable { channelsButton.visibility = View.GONE }
@@ -101,15 +105,15 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
         status.setTextColor(Color.parseColor("#9EADC4"))
         status.textSize = 12f
-        status.setPadding(dp(14), dp(8), dp(14), dp(8))
+        status.setPadding(dp(5), dp(2), dp(4), dp(2))
 
         search.hint = "⌕  Search channels..."
         search.setHintTextColor(Color.parseColor("#8293AE"))
         search.setTextColor(Color.WHITE)
-        search.textSize = 14f
+        search.textSize = 13f
         search.setSingleLine()
-        search.setPadding(dp(14), dp(11), dp(14), dp(11))
-        search.background = rounded("#172943", 14)
+        search.setPadding(dp(12), dp(7), dp(12), dp(7))
+        search.background = rounded("#172943", 12)
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
@@ -123,38 +127,33 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             if (pos in shown.indices) play(shown[pos])
         }
 
-        val filters = LinearLayout(activity)
-        filters.orientation = LinearLayout.HORIZONTAL
-        addFilterButton(filters, "All") { country = "ALL"; applyFilter() }
-        addFilterButton(filters, "Pakistan") { country = "PK"; applyFilter() }
-        addFilterButton(filters, "India") { country = "IN"; applyFilter() }
-        addFilterButton(filters, "Bangladesh") { country = "BD"; applyFilter() }
-        addFilterButton(filters, "Saudi Arabia") { country = "SA"; applyFilter() }
-        addFilterButton(filters, "Afghanistan") { country = "AF"; applyFilter() }
-        addFilterButton(filters, "Other countries") { country = "OTHER"; applyFilter() }
-        addFilterButton(filters, "My playlists") { country = "USR"; applyFilter() }
-        addFilterButton(filters, "+Link") { addPlaylistDialog() }
-        addFilterButton(filters, "Reload") { reload() }
+        countryFilters = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        buildCountryButtons()
+        addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
+        addFilterButton(countryFilters, "↻") { reload() }
 
         listPanel = LinearLayout(activity)
         listPanel.orientation = LinearLayout.VERTICAL
-        listPanel.setPadding(dp(12), dp(12), dp(12), dp(10))
+        listPanel.setPadding(dp(10), dp(7), dp(10), dp(5))
         listPanel.setBackgroundColor(Color.parseColor("#0B1729"))
 
         val heading = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(4), dp(3), dp(4), dp(10))
+            setPadding(dp(4), dp(1), dp(4), dp(5))
         }
         val title = TextView(activity).apply {
             text = "LIVE TV"
             setTextColor(Color.WHITE)
-            textSize = if (isTv) 23f else 19f
+            textSize = if (isTv) 20f else 17f
             typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
         }
         val subtitle = TextView(activity).apply {
-            text = "Explore channels • Watch live"
+            text = "Choose a country to browse live channels"
             setTextColor(Color.parseColor("#8FA2BE"))
-            textSize = 11f
+            textSize = 10f
         }
         heading.addView(title)
         heading.addView(subtitle)
@@ -162,13 +161,49 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
         val filterScroll = ScrollView(activity).apply {
             isHorizontalScrollBarEnabled = false
-            addView(filters)
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(countryFilters)
         }
         listPanel.addView(filterScroll)
-        listPanel.addView(search, LinearLayout.LayoutParams(
+
+        searchRow = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            addView(search, LinearLayout.LayoutParams(0, dp(42), 1f))
+        }
+        listPanel.addView(searchRow, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(10); bottomMargin = dp(4) })
-        listPanel.addView(status)
+        ).apply { topMargin = dp(7); bottomMargin = dp(2) })
+
+        val toolsRow = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        toolsRow.addView(status, LinearLayout.LayoutParams(0, dp(34), 1f))
+        searchToggle = TextView(activity).apply {
+            text = "⌕"
+            textSize = 25f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded("#203650", 12)
+            isFocusable = true
+            contentDescription = "Search channels"
+            setOnClickListener {
+                searchRow.visibility = if (searchRow.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                if (searchRow.visibility == View.VISIBLE) {
+                    search.requestFocus()
+                    val imm = activity.getSystemService(Activity.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                    imm.showSoftInput(search, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                } else {
+                    search.setText("")
+                    val imm = activity.getSystemService(Activity.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                    imm.hideSoftInputFromWindow(search.windowToken, 0)
+                }
+            }
+        }
+        toolsRow.addView(searchToggle, LinearLayout.LayoutParams(dp(42), dp(38)))
+        listPanel.addView(toolsRow)
         listPanel.addView(
             listView,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -390,6 +425,76 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         )
     }
 
+    private fun buildCountryButtons() {
+        countryFilters.removeAllViews()
+        countryButtons.clear()
+        val primary = listOf(
+            Triple("PK", "🇵🇰", "Pakistan"),
+            Triple("IN", "🇮🇳", "India"),
+            Triple("BD", "🇧🇩", "Bangladesh"),
+            Triple("SA", "🇸🇦", "Saudi Arabia"),
+            Triple("AF", "🇦🇫", "Afghanistan")
+        )
+        addCountryChip("ALL", "🌐", "All")
+        primary.forEach { (code, flag, label) -> addCountryChip(code, flag, label) }
+        val extras = all.map { it.country }.distinct()
+            .filter { it !in listOf("PK", "IN", "BD", "SA", "AF", "USR", "OTHER") }
+            .sorted()
+        if (extras.isNotEmpty()) {
+            addFilterButton(countryFilters, "MORE ▾") { showMoreCountries(extras) }
+        }
+        if (all.any { it.country == "USR" }) addCountryChip("USR", "📂", "My")
+        refreshCountryChips()
+    }
+
+    private fun addCountryChip(code: String, flag: String, label: String) {
+        val chip = TextView(activity).apply {
+            text = "$flag  $label"
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#DCE8F8"))
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            background = rounded("#1B304B", 18)
+            setPadding(dp(11), dp(8), dp(11), dp(8))
+            isFocusable = true
+            setOnClickListener {
+                country = code
+                applyFilter()
+                refreshCountryChips()
+            }
+        }
+        countryButtons[code] = chip
+        countryFilters.addView(chip, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(36)
+        ).apply { marginEnd = dp(6) })
+    }
+
+    private fun refreshCountryChips() {
+        countryButtons.forEach { (code, chip) ->
+            val selected = country == code
+            chip.background = rounded(if (selected) "#176B50" else "#1B304B", 18)
+            chip.setTextColor(if (selected) Color.WHITE else Color.parseColor("#DCE8F8"))
+        }
+    }
+
+    private fun showMoreCountries(codes: List<String>) {
+        val labels = codes.map { code ->
+            "🌍  ${countryLabel(code)}"
+        }.toTypedArray()
+        AlertDialog.Builder(activity)
+            .setTitle("More countries")
+            .setItems(labels) { dialog, which ->
+                if (which in codes.indices) {
+                    country = codes[which]
+                    applyFilter()
+                    refreshCountryChips()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     private fun addPlaylistDialog() {
         val input = EditText(activity)
         input.hint = "https://.../playlist.m3u"
@@ -441,6 +546,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             )
             activity.runOnUiThread {
                 all = result
+                buildCountryButtons()
                 status.text = if (all.isEmpty()) {
                     "Koi channel nahi mila. Internet check karein ya +Link se playlist add karein."
                 } else {
