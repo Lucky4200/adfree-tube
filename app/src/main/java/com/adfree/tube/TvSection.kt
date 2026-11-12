@@ -39,6 +39,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     private lateinit var listPanel: LinearLayout
     private lateinit var playerContainer: FrameLayout
     private lateinit var fullscreenButton: Button
+    private lateinit var channelsButton: Button
     private var isFullscreen = false
 
     private var all: List<Channel> = emptyList()
@@ -132,7 +133,26 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             val margin = (8 * activity.resources.displayMetrics.density).toInt()
             setMargins(margin, margin, margin, margin)
         }
+
         playerContainer.addView(fullscreenButton, buttonParams)
+
+        channelsButton = Button(activity).apply {
+            text = "☷ Channels"
+            isAllCaps = false
+            textSize = 12f
+            isFocusable = true
+            visibility = View.GONE
+            setOnClickListener { showChannelPicker() }
+        }
+        val channelsParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.START
+        ).apply {
+            val margin = (8 * activity.resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, margin)
+        }
+        playerContainer.addView(channelsButton, channelsParams)
 
         rootLayout = LinearLayout(activity)
         rootLayout.orientation = if (isTv) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
@@ -144,12 +164,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
 
     private fun toggleFullscreen() {
         isFullscreen = !isFullscreen
-        activity.requestedOrientation = if (isFullscreen) {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
-        }
         if (isFullscreen) {
+            activity.requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            enterImmersiveMode()
             rootLayout.removeAllViews()
             rootLayout.addView(
                 playerContainer,
@@ -159,9 +177,53 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
                 )
             )
             fullscreenButton.text = "⤡ Exit Full Screen"
+            channelsButton.visibility = View.VISIBLE
         } else {
+            channelsButton.visibility = View.GONE
+            exitImmersiveMode()
+            activity.requestedOrientation = if (isTv) {
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            } else {
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
             applyNormalLayout()
         }
+    }
+
+    private fun enterImmersiveMode() {
+        @Suppress("DEPRECATION")
+        activity.window.decorView.systemUiVisibility =
+            (View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
+    }
+
+    private fun exitImmersiveMode() {
+        @Suppress("DEPRECATION")
+        activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+    }
+
+    private fun showChannelPicker() {
+        if (all.isEmpty()) {
+            Toast.makeText(activity, "Channel list abhi load nahi hui", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val selected = all.indexOf(current).coerceAtLeast(0)
+        val labels = all.map { ch ->
+            val prefix = if (ch == current) "✓ NOW PLAYING  •  " else ""
+            "$prefix${ch.name} (${ch.country})"
+        }.toTypedArray()
+        AlertDialog.Builder(activity)
+            .setTitle("TV Channels")
+            .setSingleChoiceItems(labels, selected) { dialog, which ->
+                if (which in all.indices) play(all[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     private fun applyNormalLayout() {
@@ -265,7 +327,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
                 (q.isEmpty() || it.name.contains(q, ignoreCase = true))
         }
         adapter.clear()
-        adapter.addAll(shown.map { "${it.name}  (${it.country})" })
+        adapter.addAll(shown.map { if (it == current) "✓ ${it.name}  (${it.country}) — PLAYING" else "${it.name}  (${it.country})" })
         adapter.notifyDataSetChanged()
     }
 
@@ -345,12 +407,27 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     }
 
     override fun onShow() {
-        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        activity.requestedOrientation = if (isFullscreen) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        } else if (isTv) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
     }
 
     override fun onHide() {
         player.pause()
-        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        if (isFullscreen) {
+            isFullscreen = false
+            channelsButton.visibility = View.GONE
+            exitImmersiveMode()
+        }
+        activity.requestedOrientation = if (isTv) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
     }
 
     override fun onDestroy() {
