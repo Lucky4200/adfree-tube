@@ -12,15 +12,8 @@ object Config {
     // Movies site ke sirf yeh hosts khulenge (baqi sab block)
     val MOVIE_HOSTS = listOf("allsitehub.site")
 
-    // YouTube section: pehla server chalta hai, na chale to agla khud try hota hai.
-    // (Piped / Invidious ads-free YouTube frontends hain. Servers kabhi kabhi band hote hain,
-    //  is liye naye servers yahan add kar sakte hain.)
-    val YOUTUBE_SERVERS = listOf(
-        "https://piped.video",
-        "https://yewtu.be",
-        "https://inv.nadeko.net",
-        "https://m.youtube.com"
-    )
+    // Single original YouTube entry; alternate Piped/Invidious mirrors removed.
+    const val YOUTUBE_URL = "https://m.youtube.com"
 
     // TV channels: (mulk, playlist link). Ek na chale to doosra khud try hota hai.
     // Naye backup links yahan add kar sakte hain.
