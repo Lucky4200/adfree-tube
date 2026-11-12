@@ -7,9 +7,11 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
+import android.view.Gravity
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -33,6 +35,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     private val status = TextView(activity)
     private val listView = ListView(activity)
     private val search = EditText(activity)
+    private lateinit var rootLayout: LinearLayout
+    private lateinit var listPanel: LinearLayout
+    private lateinit var playerContainer: FrameLayout
+    private lateinit var fullscreenButton: Button
+    private var isFullscreen = false
 
     private var all: List<Channel> = emptyList()
     private var shown: List<Channel> = emptyList()
@@ -92,7 +99,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         addFilterButton(filters, "+Link") { addPlaylistDialog() }
         addFilterButton(filters, "Reload") { reload() }
 
-        val listPanel = LinearLayout(activity)
+        listPanel = LinearLayout(activity)
         listPanel.orientation = LinearLayout.VERTICAL
         listPanel.addView(filters)
         listPanel.addView(search)
@@ -102,31 +109,79 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
 
-        val root = LinearLayout(activity)
+        playerContainer = FrameLayout(activity)
+        playerContainer.addView(
+            playerView,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        fullscreenButton = Button(activity).apply {
+            text = "⛶ Full Screen"
+            isAllCaps = false
+            textSize = 12f
+            isFocusable = true
+            setOnClickListener { toggleFullscreen() }
+        }
+        val buttonParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.END
+        ).apply {
+            val margin = (8 * activity.resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, margin)
+        }
+        playerContainer.addView(fullscreenButton, buttonParams)
+
+        rootLayout = LinearLayout(activity)
+        rootLayout.orientation = if (isTv) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        applyNormalLayout()
+        view = rootLayout
+        reload()
+    }
+
+
+    private fun toggleFullscreen() {
+        isFullscreen = !isFullscreen
+        if (isFullscreen) {
+            rootLayout.removeAllViews()
+            rootLayout.addView(
+                playerContainer,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            fullscreenButton.text = "⤡ Exit Full Screen"
+        } else {
+            applyNormalLayout()
+        }
+    }
+
+    private fun applyNormalLayout() {
+        rootLayout.removeAllViews()
+        fullscreenButton.text = "⛶ Full Screen"
         if (isTv) {
-            root.orientation = LinearLayout.HORIZONTAL
-            root.addView(
+            rootLayout.addView(
                 listPanel,
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
             )
-            root.addView(
-                playerView,
+            rootLayout.addView(
+                playerContainer,
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 2f)
             )
         } else {
-            root.orientation = LinearLayout.VERTICAL
             val h = (220 * activity.resources.displayMetrics.density).toInt()
-            root.addView(
-                playerView,
+            rootLayout.addView(
+                playerContainer,
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h)
             )
-            root.addView(
+            rootLayout.addView(
                 listPanel,
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
             )
         }
-        view = root
-        reload()
     }
 
     private fun addFilterButton(parent: LinearLayout, label: String, action: () -> Unit) {
@@ -274,6 +329,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         player.setMediaItem(b.build())
         player.prepare()
         player.playWhenReady = true
+    }
+
+    override fun onBack(): Boolean {
+        if (isFullscreen) {
+            toggleFullscreen()
+            return true
+        }
+        return false
     }
 
     override fun onHide() {
