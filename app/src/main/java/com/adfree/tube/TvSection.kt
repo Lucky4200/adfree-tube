@@ -39,8 +39,8 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
-class Channel(val name: String, val country: String, val urls: MutableList<String>, var logoUrl: String? = null)
-private data class ParsedChannel(val name: String, val country: String, val url: String, val logoUrl: String?)
+class Channel(val name: String, val country: String, val urls: MutableList<String>, var logoUrl: String? = null, var category: String? = null)
+private data class ParsedChannel(val name: String, val country: String, val url: String, val logoUrl: String?, val category: String?)
 
 class TvSection(private val activity: Activity, private val isTv: Boolean, private val onFullscreenChanged: (Boolean) -> Unit = {}) : Section {
 
@@ -72,6 +72,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private var all: List<Channel> = emptyList()
     private var shown: List<Channel> = emptyList()
     private var country = "ALL"
+    private var sportsOnly = false
     private var current: Channel? = null
     private var urlIdx = 0
 
@@ -172,8 +173,12 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                urlIdx++
-                startUrl()
+                if (urlIdx + 1 < (current?.urls?.size ?: 0)) {
+                    urlIdx++
+                    startUrl()
+                } else {
+                    Toast.makeText(activity, "Available sources failed for ${current?.name ?: "channel"}", Toast.LENGTH_LONG).show()
+                }
             }
         })
 
@@ -206,9 +211,6 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             gravity = Gravity.CENTER_VERTICAL
         }
         buildCountryButtons()
-        addFilterButton(countryFilters, "🌍 More countries") { showMoreCountries(Locale.getISOCountries().toList()) }
-        addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
-        addFilterButton(countryFilters, "↻") { reload() }
 
         listPanel = LinearLayout(activity)
         listPanel.orientation = LinearLayout.VERTICAL
@@ -644,11 +646,16 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         val extras = all.map { it.country }.distinct()
             .filter { it !in listOf("PK", "IN", "BD", "SA", "AF", "USR", "OTHER") }
             .sorted()
-        extras.forEach { code ->
-            addCountryChip(code, countryFlag(code), countryLabel(code))
-        }
+        extras.forEach { code -> addCountryChip(code, countryFlag(code), countryLabel(code)) }
         if (all.any { it.country == "OTHER" }) addCountryChip("OTHER", "🌍", "Other")
         if (all.any { it.country == "USR" }) addCountryChip("USR", "📂", "My")
+        addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports ✓" else "🏆 Sports") {
+            sportsOnly = !sportsOnly
+            applyFilter()
+        }
+        addFilterButton(countryFilters, "🌍 More countries") { showMoreCountries(Locale.getISOCountries().toList()) }
+        addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
+        addFilterButton(countryFilters, "↻") { reload() }
         refreshCountryChips()
     }
 
@@ -709,10 +716,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         status.text = "Loading ${countryLabel(code)} channels..."
         Thread {
             val url = "https://iptv-org.github.io/iptv/countries/${code.lowercase(Locale.ROOT)}.m3u"
-            val text = fetch(url)
-            val parsed = if (text.isNullOrBlank()) emptyList() else parseM3u(text, code)
+            val countryUrl = "https://iptv-org.github.io/iptv/countries/${code.lowercase(Locale.ROOT)}.m3u"
+            val rawUrl = "https://iptv-org.github.io/iptv/raw/${code.lowercase(Locale.ROOT)}.m3u"
+            val parsed = (fetch(countryUrl)?.let { parseM3u(it, code) } ?: emptyList()) +
+                (fetch(rawUrl)?.let { parseM3u(it, code) } ?: emptyList())
             activity.runOnUiThread {
                 if (parsed.isEmpty()) {
+                    loadedCountryCodes.remove(code)
                     status.text = "Is country ki playlist mein channels available nahi hain"
                     return@runOnUiThread
                 }
@@ -723,10 +733,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                     if (name.isBlank()) return@forEach
                     val key = entry.country + "|" + name.lowercase(Locale.ROOT)
                     val channel = merged.getOrPut(key) {
-                        Channel(name, entry.country, ArrayList(), entry.logoUrl)
+                        Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category)
                     }
                     if (!channel.urls.contains(entry.url)) channel.urls.add(entry.url)
                     if (channel.logoUrl.isNullOrBlank()) channel.logoUrl = entry.logoUrl
+                    if (channel.category.isNullOrBlank()) channel.category = entry.category
                 }
                 all = merged.values.sortedWith(compareBy<Channel> { it.country }.thenBy { it.name.lowercase(Locale.ROOT) })
                 buildCountryButtons()
@@ -771,9 +782,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                     val name = cleanName(entry.name)
                     if (name.isEmpty()) continue
                     val key = entry.country + "|" + name.lowercase()
-                    val ch = map.getOrPut(key) { Channel(name, entry.country, ArrayList(), entry.logoUrl) }
+                    val ch = map.getOrPut(key) { Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category) }
                     if (!ch.urls.contains(entry.url)) ch.urls.add(entry.url)
                     if (ch.logoUrl.isNullOrBlank() && !entry.logoUrl.isNullOrBlank()) ch.logoUrl = entry.logoUrl
+                    if (ch.category.isNullOrBlank()) ch.category = entry.category
                 }
             }
             map.values.forEach { ch ->
@@ -808,7 +820,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 "OTHER" -> it.country !in priorityCodes && it.country != "USR"
                 else -> it.country == country
             }
-            countryMatch && (q.isEmpty() || it.name.contains(q, ignoreCase = true))
+            countryMatch &&
+                (!sportsOnly || isSportsChannel(it)) &&
+                (q.isEmpty() || it.name.contains(q, ignoreCase = true))
         }
         adapter.clear()
         adapter.addAll(shown.map {
@@ -820,19 +834,21 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     }
 
     private fun fetch(url: String): String? {
+        var connection: HttpURLConnection? = null
         return try {
-            val c = URL(url).openConnection() as HttpURLConnection
-            c.connectTimeout = 15000
-            c.readTimeout = 25000
-            c.instanceFollowRedirects = true
-            c.setRequestProperty("User-Agent", "Mozilla/5.0")
-            if (c.responseCode == 200) {
-                c.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                null
-            }
-        } catch (e: Exception) {
+            connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 12000
+            connection.readTimeout = 20000
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
+            connection.setRequestProperty("Accept", "*/*")
+            if (connection.responseCode == 200) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else null
+        } catch (_: Exception) {
             null
+        } finally {
+            connection?.disconnect()
         }
     }
 
@@ -841,6 +857,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         var name: String? = null
         var detectedCountry = fallbackCountry
         var logoUrl: String? = null
+        var category: String? = null
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (line.isEmpty()) continue
@@ -850,17 +867,19 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                     .findAll(line)
                     .associate { it.groupValues[1].lowercase(Locale.ROOT) to it.groupValues[2].trim() }
                 val countryValue = attributes["tvg-country"]?.split(",")?.firstOrNull()?.trim().orEmpty()
-                detectedCountry = if (fallbackCountry == "WORLD") normalizeCountry(countryValue) else fallbackCountry
+                detectedCountry = if (countryValue.isNotBlank()) normalizeCountry(countryValue) else fallbackCountry
+                category = attributes["group-title"] ?: attributes["category"]
                 logoUrl = attributes["tvg-logo"]?.takeIf {
                     it.startsWith("https://", true) || it.startsWith("http://", true)
                 }
             } else if (!line.startsWith("#")) {
                 val n = name
                 if (n != null && (line.startsWith("http://") || line.startsWith("https://"))) {
-                    out.add(ParsedChannel(n, detectedCountry, line, logoUrl))
+                    out.add(ParsedChannel(n, detectedCountry, line, logoUrl, category))
                 }
                 name = null
                 logoUrl = null
+                category = null
                 detectedCountry = fallbackCountry
             }
         }
@@ -895,6 +914,12 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         "USR" -> "My playlist"
         "OTHER" -> "Other country"
         else -> Locale("", code.uppercase()).displayCountry.ifBlank { code.uppercase() }
+    }
+
+    private fun isSportsChannel(channel: Channel): Boolean {
+        val category = channel.category.orEmpty().lowercase(Locale.ROOT)
+        if (category.split(Regex("[,;|]")).any { it.trim() == "sports" }) return true
+        return channel.name.contains(Regex("\\b(sports?|cricket|football|soccer|tennis|golf|racing|motorsport|wrestling|boxing|fight|nba|nfl|formula ?1|f1)\\b", RegexOption.IGNORE_CASE))
     }
 
     private fun cleanName(raw: String): String {
