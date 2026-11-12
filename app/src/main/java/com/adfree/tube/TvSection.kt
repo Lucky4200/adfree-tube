@@ -2,6 +2,8 @@ package com.adfree.tube
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
 import android.graphics.Color
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -655,6 +657,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         addFilterButton(countryFilters, "🌍 More countries") { showMoreCountries(Locale.getISOCountries().toList()) }
         addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
+        addFilterButton(countryFilters, "★ Official") { showOfficialServices() }
         addFilterButton(countryFilters, "↻") { reload() }
         refreshCountryChips()
     }
@@ -689,6 +692,24 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
     }
 
+    private fun showOfficialServices() {
+        val services = Config.OFFICIAL_SERVICES
+        AlertDialog.Builder(activity)
+            .setTitle("Official streaming services")
+            .setItems(services.map { it.first }.toTypedArray()) { dialog, which ->
+                if (which in services.indices) {
+                    try {
+                        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(services[which].second)))
+                    } catch (_: Exception) {
+                        Toast.makeText(activity, "Browser open nahi ho saka", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     private fun showMoreCountries(codes: List<String>) {
         val available = codes.distinct().filter { it.length == 2 && it.all { c -> c in 'A'..'Z' } }
             .sortedBy { countryLabel(it).lowercase(Locale.ROOT) }
@@ -715,7 +736,6 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         if (!loadedCountryCodes.add(code)) return
         status.text = "Loading ${countryLabel(code)} channels..."
         Thread {
-            val url = "https://iptv-org.github.io/iptv/countries/${code.lowercase(Locale.ROOT)}.m3u"
             val countryUrl = "https://iptv-org.github.io/iptv/countries/${code.lowercase(Locale.ROOT)}.m3u"
             val rawUrl = "https://iptv-org.github.io/iptv/raw/${code.lowercase(Locale.ROOT)}.m3u"
             val parsed = (fetch(countryUrl)?.let { parseM3u(it, code) } ?: emptyList()) +
@@ -933,13 +953,6 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         startUrl()
     }
 
-    private fun needsHls(url: String): Boolean {
-        val u = url.lowercase()
-        if (u.contains(".m3u8")) return true
-        val other = listOf(".mp4", ".mkv", ".mpd", ".avi", ".mp3", ".aac", ".ts")
-        return other.none { u.contains(it) }
-    }
-
     private fun startUrl() {
         val ch = current ?: return
         if (urlIdx >= ch.urls.size) {
@@ -948,7 +961,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         val url = ch.urls[urlIdx]
         val b = MediaItem.Builder().setUri(url)
-        if (needsHls(url)) b.setMimeType(MimeTypes.APPLICATION_M3U8)
+        val path = url.substringBefore("?").lowercase(Locale.ROOT)
+        when {
+            path.endsWith(".m3u8") -> b.setMimeType(MimeTypes.APPLICATION_M3U8)
+            path.endsWith(".mpd") -> b.setMimeType(MimeTypes.APPLICATION_MPD)
+            path.endsWith(".ts") -> b.setMimeType(MimeTypes.VIDEO_MP2T)
+        }
+        // Unknown extension: let Media3 sniff the response instead of forcing HLS.
         player.setMediaItem(b.build())
         player.prepare()
         player.playWhenReady = true
