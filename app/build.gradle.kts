@@ -9,20 +9,21 @@ android {
 
     defaultConfig {
         applicationId = "com.adfree.tube"
-        minSdk = 24
+        // Brave adblock-rust Android wrapper requires Android 8.0+.
+        minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 5
+        versionName = "0.5"
     }
 
     buildTypes {
         release { isMinifyEnabled = false }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
-    kotlinOptions { jvmTarget = "17" }
+    kotlinOptions { jvmTarget = "21" }
 }
 
 dependencies {
@@ -31,6 +32,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
 
-    // Native Android filter engine: EasyList/AdGuard-compatible network and cosmetic filtering.
-    implementation("com.github.Edsuns.AdblockAndroid:ad-filter:1.0")
+    // Brave's Rust-based adblocking engine with Android JNI bindings.
+    implementation("io.github.mlm-games:adblock:0.1.3")
 }
