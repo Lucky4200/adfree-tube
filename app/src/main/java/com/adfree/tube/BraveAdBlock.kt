@@ -17,10 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Brave adblock-rust integration for the app's embedded WebViews.
- *
- * Filter rules are downloaded in the background, cached locally, and refreshed daily.
- * Requests are checked by the native engine; page cosmetics and scriptlets are injected
- * after navigation completes.
+ * Filter rules are cached locally and refreshed daily.
  */
 object BraveAdBlock {
     private const val PREFS = "brave_adblock"
@@ -40,7 +37,9 @@ object BraveAdBlock {
         "https://easylist.to/easylist/easyprivacy.txt",
         "https://filters.adtidy.org/extension/chromium/filters/2.txt",
         "https://filters.adtidy.org/extension/chromium/filters/3.txt",
-        "https://filters.adtidy.org/extension/chromium/filters/14.txt"
+        "https://filters.adtidy.org/extension/chromium/filters/14.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt"
     )
 
     fun initialize(context: Context) {
@@ -52,21 +51,29 @@ object BraveAdBlock {
             val nativeEngine = AdblockEngine.create()
             engine = nativeEngine
 
-            try {
-                val cache = java.io.File(app.filesDir, "brave-adblock.bin")
-                if (cache.exists()) nativeEngine.deserializeFrom(cache)
-                val resources = app.assets.open("adblock/resources.json")
-                    .bufferedReader(Charsets.UTF_8).use { it.readText() }
-                nativeEngine.loadResources(resources)
+            val cache = java.io.File(app.filesDir, "brave-adblock.bin")
+            val cacheLoaded = try {
+                cache.exists() && nativeEngine.deserializeFrom(cache)
             } catch (_: Exception) {
-                // Keep the engine alive; network filters can still be loaded below.
+                false
             }
+
+            loadScriptletResources(app, nativeEngine)
 
             val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val lastUpdate = prefs.getLong(KEY_UPDATED_AT, 0L)
-            if (lastUpdate == 0L || System.currentTimeMillis() - lastUpdate >= UPDATE_INTERVAL_MS) {
-                updateFilters(app)
-            }
+            val stale = lastUpdate == 0L ||
+                System.currentTimeMillis() - lastUpdate >= UPDATE_INTERVAL_MS
+            if (!cacheLoaded || stale) updateFilters(app)
+        }
+    }
+
+    private fun loadScriptletResources(context: Context, target: AdblockEngine) {
+        try {
+            val resources = context.assets.open("adblock/resources.json")
+                .bufferedReader(Charsets.UTF_8).use { it.readText() }
+            target.loadResources(resources)
+        } catch (_: Exception) {
         }
     }
 
@@ -87,12 +94,7 @@ object BraveAdBlock {
                 if (combined.isNotEmpty() && combined.length <= MAX_FILTER_CHARS) {
                     val current = engine
                     if (current != null && current.loadFilterList(combined.toString())) {
-                        try {
-                            val resources = context.assets.open("adblock/resources.json")
-                                .bufferedReader(Charsets.UTF_8).use { it.readText() }
-                            current.loadResources(resources)
-                        } catch (_: Exception) {
-                        }
+                        loadScriptletResources(context, current)
                         current.serializeTo(java.io.File(context.filesDir, "brave-adblock.bin"))
                         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                             .edit().putLong(KEY_UPDATED_AT, System.currentTimeMillis()).apply()
@@ -111,7 +113,7 @@ object BraveAdBlock {
                 connectTimeout = 15_000
                 readTimeout = 30_000
                 requestMethod = "GET"
-                setRequestProperty("User-Agent", "AdFreeTube/0.5 (Android WebView)")
+                setRequestProperty("User-Agent", "AdFreeTube/0.6 (Android WebView)")
                 setRequestProperty("Accept", "text/plain,*/*")
             }
             if (connection.responseCode !in 200..299) return null
@@ -164,17 +166,22 @@ object BraveAdBlock {
         val js = """
             (function() {
               try {
-                var cssText = $css;
-                if (cssText) {
-                  var style = document.createElement('style');
-                  style.setAttribute('data-adfree-tube', 'cosmetic');
-                  style.textContent = cssText;
-                  (document.head || document.documentElement).appendChild(style);
+                if (!document.querySelector('style[data-adfree-tube="cosmetic"]')) {
+                  var cssText = $css;
+                  if (cssText) {
+                    var style = document.createElement('style');
+                    style.setAttribute('data-adfree-tube', 'cosmetic');
+                    style.textContent = cssText;
+                    (document.head || document.documentElement).appendChild(style);
+                  }
                 }
               } catch (e) {}
               try {
                 var scriptlets = $scriptlets;
-                if (scriptlets) (0, eval)(scriptlets);
+                if (scriptlets && !window.__adFreeTubeScriptletsInjected) {
+                  window.__adFreeTubeScriptletsInjected = true;
+                  (0, eval)(scriptlets);
+                }
               } catch (e) {}
             })();
         """.trimIndent()
