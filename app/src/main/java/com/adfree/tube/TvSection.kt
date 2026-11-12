@@ -574,6 +574,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             if (it == current) "✓ ${it.name}  •  $label — PLAYING" else "${it.name}  •  $label"
         })
         adapter.notifyDataSetChanged()
+        if (::countryFilters.isInitialized) refreshCountryChips()
+        status.text = if (shown.isEmpty()) "No channels found in this country" else "${shown.size} channels"
     }
 
     private fun fetch(url: String): String? {
