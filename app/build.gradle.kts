@@ -11,8 +11,8 @@ android {
         applicationId = "com.adfree.tube"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
     }
 
     buildTypes {
@@ -30,4 +30,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
+
+    // Native Android filter engine: EasyList/AdGuard-compatible network and cosmetic filtering.
+    implementation("com.github.Edsuns.AdblockAndroid:ad-filter:1.0")
 }
