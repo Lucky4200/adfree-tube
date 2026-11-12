@@ -62,6 +62,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private lateinit var searchRow: LinearLayout
     private lateinit var searchToggle: TextView
     private val countryButtons = LinkedHashMap<String, TextView>()
+    private val loadedCountryCodes = ConcurrentHashMap.newKeySet<String>()
     private val logoCache = ConcurrentHashMap<String, Bitmap>()
     private val logoExecutor = Executors.newFixedThreadPool(3)
     private var isFullscreen = false
@@ -205,6 +206,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             gravity = Gravity.CENTER_VERTICAL
         }
         buildCountryButtons()
+        addFilterButton(countryFilters, "🌍 More countries") { showMoreCountries(Locale.getISOCountries().toList()) }
         addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
         addFilterButton(countryFilters, "↻") { reload() }
 
@@ -681,21 +683,56 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     }
 
     private fun showMoreCountries(codes: List<String>) {
-        val labels = codes.map { code ->
-            "🌍  ${countryLabel(code)}"
+        val available = codes.distinct().filter { it.length == 2 && it.all { c -> c in 'A'..'Z' } }
+            .sortedBy { countryLabel(it).lowercase(Locale.ROOT) }
+        val labels = available.map { code ->
+            "${countryFlag(code)}  ${countryLabel(code)}"
         }.toTypedArray()
         AlertDialog.Builder(activity)
             .setTitle("More countries")
             .setItems(labels) { dialog, which ->
-                if (which in codes.indices) {
-                    country = codes[which]
+                if (which in available.indices) {
+                    val selectedCode = available[which]
+                    country = selectedCode
                     applyFilter()
                     refreshCountryChips()
+                    if (!loadedCountryCodes.contains(selectedCode)) loadCountryPlaylist(selectedCode)
                 }
                 dialog.dismiss()
             }
             .setNegativeButton("Close", null)
             .show()
+    }
+
+    private fun loadCountryPlaylist(code: String) {
+        if (!loadedCountryCodes.add(code)) return
+        status.text = "Loading ${countryLabel(code)} channels..."
+        Thread {
+            val url = "https://iptv-org.github.io/iptv/countries/${code.lowercase(Locale.ROOT)}.m3u"
+            val text = fetch(url)
+            val parsed = if (text.isNullOrBlank()) emptyList() else parseM3u(text, code)
+            activity.runOnUiThread {
+                if (parsed.isEmpty()) {
+                    status.text = "Is country ki playlist mein channels available nahi hain"
+                    return@runOnUiThread
+                }
+                val merged = LinkedHashMap<String, Channel>()
+                all.forEach { merged[it.country + "|" + it.name.lowercase(Locale.ROOT)] = it }
+                parsed.forEach { entry ->
+                    val name = cleanName(entry.name)
+                    if (name.isBlank()) return@forEach
+                    val key = entry.country + "|" + name.lowercase(Locale.ROOT)
+                    val channel = merged.getOrPut(key) {
+                        Channel(name, entry.country, ArrayList(), entry.logoUrl)
+                    }
+                    if (!channel.urls.contains(entry.url)) channel.urls.add(entry.url)
+                    if (channel.logoUrl.isNullOrBlank()) channel.logoUrl = entry.logoUrl
+                }
+                all = merged.values.sortedWith(compareBy<Channel> { it.country }.thenBy { it.name.lowercase(Locale.ROOT) })
+                buildCountryButtons()
+                applyFilter()
+            }
+        }.start()
     }
 
     private fun addPlaylistDialog() {
@@ -728,6 +765,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 sources.add(Pair("USR", it))
             }
             for ((fallbackCountry, url) in sources) {
+                if (fallbackCountry.length == 2) loadedCountryCodes.add(fallbackCountry)
+                if (fallbackCountry == "WORLD") loadedCountryCodes.addAll(Locale.getISOCountries().toList())
                 val text = fetch(url) ?: continue
                 for (entry in parseM3u(text, fallbackCountry)) {
                     val name = cleanName(entry.name)
