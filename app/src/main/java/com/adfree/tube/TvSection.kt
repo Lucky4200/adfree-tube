@@ -423,6 +423,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             isFullscreen = false
             channelsButton.visibility = View.GONE
             exitImmersiveMode()
+            applyNormalLayout()
         }
         activity.requestedOrientation = if (isTv) {
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
