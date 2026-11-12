@@ -56,6 +56,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private lateinit var fullscreenButton: Button
     private lateinit var ratioButton: Button
     private lateinit var channelsButton: Button
+    private lateinit var channelOverlay: FrameLayout
+    private lateinit var overlayList: ListView
     private lateinit var countryFilters: LinearLayout
     private lateinit var searchRow: LinearLayout
     private lateinit var searchToggle: TextView
@@ -349,7 +351,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             setPadding(dp(14), dp(7), dp(14), dp(7))
             isFocusable = true
             visibility = View.GONE
-            setOnClickListener { showChannelPicker() }
+            setOnClickListener { showChannelOverlay() }
         }
         val channelsParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -360,6 +362,85 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             setMargins(margin, margin, margin, margin)
         }
         playerContainer.addView(channelsButton, channelsParams)
+
+        channelOverlay = FrameLayout(activity).apply {
+            setBackgroundColor(Color.parseColor("#66000000"))
+            visibility = View.GONE
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { hideChannelOverlay() }
+        }
+        val overlayPanel = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = rounded("#F0122034", 18)
+            elevation = dp(14).toFloat()
+            isFocusable = true
+        }
+        val overlayHeader = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val overlayTitle = TextView(activity).apply {
+            text = "LIVE CHANNELS"
+            textSize = if (isTv) 18f else 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        }
+        overlayHeader.addView(overlayTitle, LinearLayout.LayoutParams(0, dp(42), 1f))
+        val closeOverlay = TextView(activity).apply {
+            text = "✕"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded("#34465D", 10)
+            isFocusable = true
+            contentDescription = "Close channel list"
+            setOnClickListener { hideChannelOverlay() }
+        }
+        overlayHeader.addView(closeOverlay, LinearLayout.LayoutParams(dp(42), dp(42)))
+        overlayPanel.addView(overlayHeader)
+
+        val overlayHint = TextView(activity).apply {
+            text = "Select a channel • Video keeps playing"
+            textSize = 10f
+            setTextColor(Color.parseColor("#AFC0D5"))
+            setPadding(dp(2), 0, 0, dp(8))
+        }
+        overlayPanel.addView(overlayHint)
+        overlayList = ListView(activity).apply {
+            adapter = this@TvSection.adapter
+            divider = android.graphics.drawable.ColorDrawable(Color.parseColor("#30445D"))
+            dividerHeight = dp(1)
+            cacheColorHint = Color.TRANSPARENT
+            selector = rounded("#426B88", 8)
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnItemClickListener { _, _, pos, _ ->
+                if (pos in shown.indices) {
+                    play(shown[pos])
+                    hideChannelOverlay()
+                    playerView.requestFocus()
+                }
+            }
+        }
+        overlayPanel.addView(overlayList, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        val panelParams = FrameLayout.LayoutParams(
+            if (isTv) dp(390) else (activity.resources.displayMetrics.widthPixels * 0.82f).toInt(),
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            Gravity.END or Gravity.CENTER_VERTICAL
+        ).apply {
+            setMargins(dp(10), dp(10), dp(10), dp(10))
+        }
+        channelOverlay.addView(overlayPanel, panelParams)
+        playerContainer.addView(channelOverlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+
         playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
                 if (isFullscreen) {
@@ -470,33 +551,29 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         if (isFullscreen) revealChannelControl()
     }
 
-    private fun showChannelPicker() {
+    private fun showChannelOverlay() {
         uiHandler.removeCallbacks(hideChannelButton)
         channelsButton.visibility = View.GONE
         if (all.isEmpty()) {
             Toast.makeText(activity, "Channel list abhi load nahi hui", Toast.LENGTH_SHORT).show()
+            if (isFullscreen) revealChannelControl()
             return
         }
-        val selected = all.indexOf(current).coerceAtLeast(0)
-        val labels = all.map { ch ->
-            val prefix = countryFlag(ch.country) + "  " + if (ch == current) "▶ " else ""
-            "$prefix${ch.name}"
-        }.toTypedArray()
-        AlertDialog.Builder(activity)
-             .setTitle("TV Channels")
-            .setSingleChoiceItems(labels, selected) { dialog, which ->
-                if (which in all.indices) play(all[which])
-                dialog.dismiss()
-                if (isFullscreen) revealChannelControl()
-            }
-            .setNegativeButton("Close") { dialog, _ ->
-                dialog.dismiss()
-                if (isFullscreen) revealChannelControl()
-            }
-            .show()
+        applyFilter()
+        channelOverlay.visibility = View.VISIBLE
+        channelOverlay.bringToFront()
+        overlayList.setSelection(shown.indexOf(current).coerceAtLeast(0))
+        overlayList.requestFocus()
+    }
+
+    private fun hideChannelOverlay() {
+        if (!::channelOverlay.isInitialized) return
+        channelOverlay.visibility = View.GONE
+        if (isFullscreen) revealChannelControl()
     }
 
     private fun applyNormalLayout() {
+        if (::channelOverlay.isInitialized) channelOverlay.visibility = View.GONE
         rootLayout.removeAllViews()
         fullscreenButton.text = "⛶ Full Screen"
         if (isTv) {
@@ -852,6 +929,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
     override fun onDestroy() {
         uiHandler.removeCallbacksAndMessages(null)
+        if (::channelOverlay.isInitialized) channelOverlay.visibility = View.GONE
         logoExecutor.shutdownNow()
         logoCache.values.forEach { it.recycle() }
         logoCache.clear()
