@@ -11,7 +11,7 @@ import android.widget.Toast
 class MoviesSection(private val activity: Activity) : Section {
 
     private val chrome = FullscreenChrome(activity)
-    private val web: WebView
+    private lateinit var web: WebView
     override val view: View
 
     init {
