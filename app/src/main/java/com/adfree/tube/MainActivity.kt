@@ -16,7 +16,7 @@ class MainActivity : Activity() {
     private lateinit var content: FrameLayout
     private val tabs = mutableListOf<Button>()
     private val sections = arrayOfNulls<Section>(3)
-    private val names = listOf("YouTube", "TV", "Movies")
+    private val names = listOf("▶ YouTube", "📺 TV", "🎬 Movies")
     private var currentIndex = -1
     private var isTv = false
 
