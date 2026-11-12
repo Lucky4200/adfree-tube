@@ -612,7 +612,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 val countryMatch = Regex("""tvg-country="([^"]+)"""", RegexOption.IGNORE_CASE)
                     .find(line)?.groupValues?.getOrNull(1)
                 detectedCountry = if (fallbackCountry == "WORLD") {
-                    countryMatch?.split(",")?.firstOrNull()?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: "OTHER"
+                    normalizeCountry(countryMatch?.split(",")?.firstOrNull()?.trim().orEmpty())
                 } else fallbackCountry
             } else if (!line.startsWith("#")) {
                 val n = name
@@ -624,6 +624,16 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             }
         }
         return out
+    }
+
+    private fun normalizeCountry(value: String): String {
+        val name = value.trim()
+        if (name.isEmpty()) return "OTHER"
+        val upper = name.uppercase(Locale.ROOT)
+        if (upper.length == 2 && upper.all { it in 'A'..'Z' }) return upper
+        return Locale.getISOCountries().firstOrNull {
+            Locale("", it).displayCountry.equals(name, ignoreCase = true)
+        } ?: "OTHER"
     }
 
     private fun countryFlag(code: String): String {
