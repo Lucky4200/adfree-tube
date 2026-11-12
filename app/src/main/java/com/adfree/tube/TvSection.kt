@@ -109,7 +109,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         addFilterButton(filters, "All") { country = "ALL"; applyFilter() }
         addFilterButton(filters, "Pakistan") { country = "PK"; applyFilter() }
         addFilterButton(filters, "India") { country = "IN"; applyFilter() }
-        addFilterButton(filters, "Extra") { country = "USR"; applyFilter() }
+        addFilterButton(filters, "Bangladesh") { country = "BD"; applyFilter() }
+        addFilterButton(filters, "Saudi Arabia") { country = "SA"; applyFilter() }
+        addFilterButton(filters, "Afghanistan") { country = "AF"; applyFilter() }
+        addFilterButton(filters, "Other countries") { country = "OTHER"; applyFilter() }
+        addFilterButton(filters, "My playlists") { country = "USR"; applyFilter() }
         addFilterButton(filters, "+Link") { addPlaylistDialog() }
         addFilterButton(filters, "Reload") { reload() }
 
@@ -359,20 +363,26 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             (prefs.getStringSet("playlists", emptySet()) ?: emptySet()).forEach {
                 sources.add(Pair("USR", it))
             }
-            for ((c, url) in sources) {
+            for ((fallbackCountry, url) in sources) {
                 val text = fetch(url) ?: continue
-                for ((rawName, link) in parseM3u(text)) {
+                for ((rawName, detectedCountry, link) in parseM3u(text, fallbackCountry)) {
                     val name = cleanName(rawName)
                     if (name.isEmpty()) continue
-                    val key = c + "|" + name.lowercase()
-                    val ch = map.getOrPut(key) { Channel(name, c, ArrayList()) }
+                    val key = detectedCountry + "|" + name.lowercase()
+                    val ch = map.getOrPut(key) { Channel(name, detectedCountry, ArrayList()) }
                     if (!ch.urls.contains(link)) ch.urls.add(link)
                 }
             }
             map.values.forEach { ch ->
                 ch.urls.sortBy { if (it.startsWith("https")) 0 else 1 }
             }
-            val result = map.values.sortedBy { it.name.lowercase() }
+            val priority = listOf("PK", "IN", "BD", "SA", "AF")
+            val result = map.values.sortedWith(
+                compareBy<Channel> {
+                    val index = priority.indexOf(it.country)
+                    if (index >= 0) index else priority.size
+                }.thenBy { it.country }.thenBy { it.name.lowercase() }
+            )
             activity.runOnUiThread {
                 all = result
                 status.text = if (all.isEmpty()) {
@@ -387,12 +397,20 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
 
     private fun applyFilter() {
         val q = search.text.toString().trim()
+        val priorityCodes = setOf("PK", "IN", "BD", "SA", "AF")
         shown = all.filter {
-            (country == "ALL" || it.country == country) &&
-                (q.isEmpty() || it.name.contains(q, ignoreCase = true))
+            val countryMatch = when (country) {
+                "ALL" -> true
+                "OTHER" -> it.country !in priorityCodes && it.country != "USR"
+                else -> it.country == country
+            }
+            countryMatch && (q.isEmpty() || it.name.contains(q, ignoreCase = true))
         }
         adapter.clear()
-        adapter.addAll(shown.map { if (it == current) "✓ ${it.name}  (${it.country}) — PLAYING" else "${it.name}  (${it.country})" })
+        adapter.addAll(shown.map {
+            val label = countryLabel(it.country)
+            if (it == current) "✓ ${it.name}  •  $label — PLAYING" else "${it.name}  •  $label"
+        })
         adapter.notifyDataSetChanged()
     }
 
@@ -413,23 +431,41 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         }
     }
 
-    private fun parseM3u(text: String): List<Pair<String, String>> {
-        val out = ArrayList<Pair<String, String>>()
+    private fun parseM3u(text: String, fallbackCountry: String): List<Triple<String, String, String>> {
+        val out = ArrayList<Triple<String, String, String>>()
         var name: String? = null
+        var detectedCountry = fallbackCountry
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (line.isEmpty()) continue
             if (line.startsWith("#EXTINF")) {
                 name = line.substringAfterLast(",").trim()
+                val countryMatch = Regex("""tvg-country="([^"]+)"""", RegexOption.IGNORE_CASE)
+                    .find(line)?.groupValues?.getOrNull(1)
+                detectedCountry = if (fallbackCountry == "WORLD") {
+                    countryMatch?.split(",")?.firstOrNull()?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: "OTHER"
+                } else fallbackCountry
             } else if (!line.startsWith("#")) {
                 val n = name
                 if (n != null && (line.startsWith("http://") || line.startsWith("https://"))) {
-                    out.add(Pair(n, line))
+                    out.add(Triple(n, detectedCountry, line))
                 }
                 name = null
+                detectedCountry = fallbackCountry
             }
         }
         return out
+    }
+
+    private fun countryLabel(code: String): String = when (code.uppercase()) {
+        "PK" -> "Pakistan"
+        "IN" -> "India"
+        "BD" -> "Bangladesh"
+        "SA" -> "Saudi Arabia"
+        "AF" -> "Afghanistan"
+        "USR" -> "My playlist"
+        "OTHER" -> "Other country"
+        else -> code.uppercase()
     }
 
     private fun cleanName(raw: String): String {
