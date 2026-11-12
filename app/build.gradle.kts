@@ -5,15 +5,15 @@ plugins {
 
 android {
     namespace = "com.adfree.tube"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.adfree.tube"
         // Brave adblock-rust Android wrapper requires Android 8.0+.
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "0.8"
+        versionCode = 9
+        versionName = "0.9"
     }
 
     buildTypes {
