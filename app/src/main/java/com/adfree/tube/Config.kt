@@ -18,12 +18,30 @@ object Config {
     // TV channels: (mulk, playlist link). Ek na chale to doosra khud try hota hai.
     // Naye backup links yahan add kar sakte hain.
     val PLAYLISTS = listOf(
+        // Best public country feeds
         Pair("PK", "https://iptv-org.github.io/iptv/countries/pk.m3u"),
         Pair("IN", "https://iptv-org.github.io/iptv/countries/in.m3u"),
         Pair("BD", "https://iptv-org.github.io/iptv/countries/bd.m3u"),
         Pair("SA", "https://iptv-org.github.io/iptv/countries/sa.m3u"),
         Pair("AF", "https://iptv-org.github.io/iptv/countries/af.m3u"),
+        // Raw country feeds add alternate public stream URLs for automatic retry
+        Pair("PK", "https://iptv-org.github.io/iptv/raw/pk.m3u"),
+        Pair("IN", "https://iptv-org.github.io/iptv/raw/in.m3u"),
+        Pair("BD", "https://iptv-org.github.io/iptv/raw/bd.m3u"),
+        Pair("SA", "https://iptv-org.github.io/iptv/raw/sa.m3u"),
+        Pair("AF", "https://iptv-org.github.io/iptv/raw/af.m3u"),
+        // Dedicated sports catalogue plus wider regional discovery feeds
+        Pair("WORLD", "https://iptv-org.github.io/iptv/categories/sports.m3u"),
+        Pair("WORLD", "https://iptv-org.github.io/iptv/regions/gcc.m3u"),
+        Pair("WORLD", "https://iptv-org.github.io/iptv/regions/arab.m3u"),
+        Pair("WORLD", "https://iptv-org.github.io/iptv/regions/sas.m3u"),
         Pair("WORLD", "https://iptv-org.github.io/iptv/index.m3u")
+    )
+
+    // Official service links only; paid channels still require a valid subscription.
+    val OFFICIAL_SERVICES = listOf(
+        Pair("Sony LIV", "https://www.sonyliv.com/"),
+        Pair("AVT Khyber", "https://avtkhyber.tv/")
     )
 
     // Ad / tracker servers jo block hote hain
