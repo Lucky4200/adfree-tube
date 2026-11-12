@@ -19,9 +19,11 @@ object Config {
     // Naye backup links yahan add kar sakte hain.
     val PLAYLISTS = listOf(
         Pair("PK", "https://iptv-org.github.io/iptv/countries/pk.m3u"),
-        Pair("PK", "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/pk.m3u"),
         Pair("IN", "https://iptv-org.github.io/iptv/countries/in.m3u"),
-        Pair("IN", "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u")
+        Pair("BD", "https://iptv-org.github.io/iptv/countries/bd.m3u"),
+        Pair("SA", "https://iptv-org.github.io/iptv/countries/sa.m3u"),
+        Pair("AF", "https://iptv-org.github.io/iptv/countries/af.m3u"),
+        Pair("WORLD", "https://iptv-org.github.io/iptv/index.m3u")
     )
 
     // Ad / tracker servers jo block hote hain
