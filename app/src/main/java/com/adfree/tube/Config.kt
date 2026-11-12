@@ -36,8 +36,12 @@ object Config {
 
     // Official service links only; paid channels still require a valid subscription.
     val OFFICIAL_SERVICES = listOf(
-        Pair("Sony LIV", "https://www.sonyliv.com/"),
-        Pair("AVT Khyber", "https://avtkhyber.tv/")
+        Pair("ARY News Live (Free)", "https://live.arynews.tv/"),
+        Pair("Al Jazeera Live (Free)", "https://www.aljazeera.com/video/live/"),
+        Pair("PCB Live (Free in Pakistan when offered)", "https://live.pcb.com.pk/"),
+        Pair("Sling Freestream (Free, region-limited)", "https://www.sling.com/freestream/international"),
+        Pair("Sony LIV (official; subscription content)", "https://www.sonyliv.com/"),
+        Pair("AVT Khyber (official)", "https://avtkhyber.tv/")
     )
 
     // Ad / tracker servers jo block hote hain
