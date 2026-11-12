@@ -25,6 +25,12 @@ class MainActivity : Activity() {
 
         val uiMode = getSystemService(UI_MODE_SERVICE) as UiModeManager
         isTv = uiMode.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        // Keep the phone app portrait by default. TV fullscreen opts into the sensor explicitly.
+        requestedOrientation = if (isTv) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
