@@ -3,9 +3,13 @@ package com.adfree.tube
 import android.app.Activity
 import android.app.AlertDialog
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
+import android.view.LayoutInflater
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -28,17 +32,21 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.AspectRatioFrameLayout
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
-class Channel(val name: String, val country: String, val urls: MutableList<String>)
+class Channel(val name: String, val country: String, val urls: MutableList<String>, var logoUrl: String? = null)
+private data class ParsedChannel(val name: String, val country: String, val url: String, val logoUrl: String?)
 
 class TvSection(private val activity: Activity, private val isTv: Boolean, private val onFullscreenChanged: (Boolean) -> Unit = {}) : Section {
 
     private val prefs = activity.getSharedPreferences("adfree", Activity.MODE_PRIVATE)
     private val player: ExoPlayer = ExoPlayer.Builder(activity).build()
-    private val playerView = PlayerView(activity)
+    private val playerView: PlayerView by lazy { LayoutInflater.from(activity).inflate(R.layout.tv_player_view, null) as PlayerView }
     private val status = TextView(activity)
     private val listView = ListView(activity)
     private val search = EditText(activity)
@@ -46,11 +54,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private lateinit var listPanel: LinearLayout
     private lateinit var playerContainer: FrameLayout
     private lateinit var fullscreenButton: Button
+    private lateinit var ratioButton: Button
     private lateinit var channelsButton: Button
     private lateinit var countryFilters: LinearLayout
     private lateinit var searchRow: LinearLayout
     private lateinit var searchToggle: TextView
     private val countryButtons = LinkedHashMap<String, TextView>()
+    private val logoCache = ConcurrentHashMap<String, Bitmap>()
+    private val logoExecutor = Executors.newFixedThreadPool(3)
     private var isFullscreen = false
     private val uiHandler = Handler(Looper.getMainLooper())
     private val hideChannelButton = Runnable { channelsButton.visibility = View.GONE }
@@ -65,16 +76,74 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         activity, android.R.layout.simple_list_item_1, ArrayList<String>()
     ) {
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val v = super.getView(position, convertView, parent) as TextView
             val channel = shown.getOrNull(position)
             val playing = channel != null && channel == current
-            v.setTextColor(if (playing) Color.parseColor("#7CF5C5") else Color.parseColor("#E8EEF8"))
-            v.textSize = if (isTv) 19f else 15f
-            v.typeface = if (playing) Typeface.DEFAULT_BOLD else Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            v.setPadding(dp(16), dp(13), dp(16), dp(13))
-            v.background = rounded(if (playing) "#183E3A" else "#14233B", 12)
-            v.minimumHeight = dp(if (isTv) 58 else 48)
-            return v
+            val row = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(7), dp(10), dp(7))
+                background = rounded(if (playing) "#183E3A" else "#14233B", 12)
+                minimumHeight = dp(if (isTv) 62 else 54)
+            }
+            val logoFrame = FrameLayout(activity)
+            val fallback = TextView(activity).apply {
+                text = channel?.let { countryFlag(it.country) } ?: "📺"
+                textSize = if (isTv) 23f else 20f
+                gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                background = rounded("#263D59", 10)
+            }
+            logoFrame.addView(fallback, FrameLayout.LayoutParams(dp(42), dp(42)))
+            val logoUrl = channel?.logoUrl
+            if (!logoUrl.isNullOrBlank()) {
+                val image = ImageView(activity).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    tag = logoUrl
+                }
+                logoFrame.addView(image, FrameLayout.LayoutParams(dp(42), dp(42)))
+                val cached = logoCache[logoUrl]
+                if (cached != null) {
+                    image.setImageBitmap(cached)
+                    fallback.visibility = View.GONE
+                } else {
+                    logoExecutor.execute {
+                        try {
+                            val connection = URL(logoUrl).openConnection() as HttpURLConnection
+                            connection.connectTimeout = 7000
+                            connection.readTimeout = 7000
+                            connection.instanceFollowRedirects = true
+                            connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                            val bitmap = if (connection.responseCode == 200) {
+                                connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                            } else null
+                            connection.disconnect()
+                            if (bitmap != null) {
+                                logoCache[logoUrl] = bitmap
+                                activity.runOnUiThread {
+                                    if (image.tag == logoUrl) {
+                                        image.setImageBitmap(bitmap)
+                                        fallback.visibility = View.GONE
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) { }
+                    }
+                }
+            }
+            row.addView(logoFrame, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
+                marginEnd = dp(12)
+            })
+            val label = TextView(activity).apply {
+                text = if (playing) "✓  " + (channel?.name ?: getItem(position)) + "  •  PLAYING"
+                    else channel?.name ?: getItem(position)
+                setTextColor(if (playing) Color.parseColor("#7CF5C5") else Color.parseColor("#E8EEF8"))
+                textSize = if (isTv) 18f else 14f
+                typeface = if (playing) Typeface.DEFAULT_BOLD else Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                maxLines = 2
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            return row
         }
     }
 
@@ -83,6 +152,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     init {
         playerView.player = player
         playerView.keepScreenOn = true
+        playerView.setShutterBackgroundColor(Color.BLACK)
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         playerView.isFocusable = true
         playerView.setOnClickListener {
             if (isFullscreen) revealChannelControl()
@@ -246,6 +317,28 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
         playerContainer.addView(fullscreenButton, buttonParams)
 
+        ratioButton = Button(activity).apply {
+            text = "▣  Fit"
+            isAllCaps = false
+            textSize = 11f
+            setTextColor(Color.WHITE)
+            background = rounded("#D91C2D42", 22)
+            elevation = dp(5).toFloat()
+            setPadding(dp(11), dp(7), dp(11), dp(7))
+            isFocusable = true
+            contentDescription = "Video aspect ratio"
+            setOnClickListener { showRatioOptions() }
+        }
+        val ratioParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.START
+        ).apply {
+            val margin = dp(8)
+            setMargins(margin, margin, margin, margin)
+        }
+        playerContainer.addView(ratioButton, ratioParams)
+
         channelsButton = Button(activity).apply {
             text = "☷  Channels"
             isAllCaps = false
@@ -287,6 +380,33 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         reload()
     }
 
+
+    private fun showRatioOptions() {
+        val labels = arrayOf(
+            "Fit to Screen (recommended)",
+            "Original / Fit",
+            "Fill Screen",
+            "Zoom to Fill"
+        )
+        AlertDialog.Builder(activity)
+            .setTitle("Video Screen Ratio")
+            .setItems(labels) { dialog, which ->
+                val mode = when (which) {
+                    2 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    3 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+                playerView.resizeMode = mode
+                ratioButton.text = when (which) {
+                    2 -> "▣  Fill"
+                    3 -> "▣  Zoom"
+                    1 -> "▣  Original"
+                    else -> "▣  Fit"
+                }
+                dialog.dismiss()
+            }
+            .show()
+    }
 
     private fun toggleFullscreen() {
         isFullscreen = !isFullscreen
@@ -359,7 +479,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         val selected = all.indexOf(current).coerceAtLeast(0)
         val labels = all.map { ch ->
-            val prefix = if (ch == current) "✓ NOW PLAYING  •  " else ""
+            val prefix = countryFlag(ch.country) + "  " + if (ch == current) "▶ " else ""
             "$prefix${ch.name}"
         }.toTypedArray()
         AlertDialog.Builder(activity)
@@ -532,12 +652,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             }
             for ((fallbackCountry, url) in sources) {
                 val text = fetch(url) ?: continue
-                for ((rawName, detectedCountry, link) in parseM3u(text, fallbackCountry)) {
-                    val name = cleanName(rawName)
+                for (entry in parseM3u(text, fallbackCountry)) {
+                    val name = cleanName(entry.name)
                     if (name.isEmpty()) continue
-                    val key = detectedCountry + "|" + name.lowercase()
-                    val ch = map.getOrPut(key) { Channel(name, detectedCountry, ArrayList()) }
-                    if (!ch.urls.contains(link)) ch.urls.add(link)
+                    val key = entry.country + "|" + name.lowercase()
+                    val ch = map.getOrPut(key) { Channel(name, entry.country, ArrayList(), entry.logoUrl) }
+                    if (!ch.urls.contains(entry.url)) ch.urls.add(entry.url)
+                    if (ch.logoUrl.isNullOrBlank() && !entry.logoUrl.isNullOrBlank()) ch.logoUrl = entry.logoUrl
                 }
             }
             map.values.forEach { ch ->
@@ -600,26 +721,31 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
     }
 
-    private fun parseM3u(text: String, fallbackCountry: String): List<Triple<String, String, String>> {
-        val out = ArrayList<Triple<String, String, String>>()
+    private fun parseM3u(text: String, fallbackCountry: String): List<ParsedChannel> {
+        val out = ArrayList<ParsedChannel>()
         var name: String? = null
         var detectedCountry = fallbackCountry
+        var logoUrl: String? = null
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (line.isEmpty()) continue
-            if (line.startsWith("#EXTINF")) {
+            if (line.startsWith("#EXTINF", ignoreCase = true)) {
                 name = line.substringAfterLast(",").trim()
-                val countryMatch = Regex("""tvg-country="([^"]+)"""", RegexOption.IGNORE_CASE)
-                    .find(line)?.groupValues?.getOrNull(1)
-                detectedCountry = if (fallbackCountry == "WORLD") {
-                    normalizeCountry(countryMatch?.split(",")?.firstOrNull()?.trim().orEmpty())
-                } else fallbackCountry
+                val attributes = Regex("""([\w-]+)\s*=\s*["']([^"']*)["']""")
+                    .findAll(line)
+                    .associate { it.groupValues[1].lowercase(Locale.ROOT) to it.groupValues[2].trim() }
+                val countryValue = attributes["tvg-country"]?.split(",")?.firstOrNull()?.trim().orEmpty()
+                detectedCountry = if (fallbackCountry == "WORLD") normalizeCountry(countryValue) else fallbackCountry
+                logoUrl = attributes["tvg-logo"]?.takeIf {
+                    it.startsWith("https://", true) || it.startsWith("http://", true)
+                }
             } else if (!line.startsWith("#")) {
                 val n = name
                 if (n != null && (line.startsWith("http://") || line.startsWith("https://"))) {
-                    out.add(Triple(n, detectedCountry, line))
+                    out.add(ParsedChannel(n, detectedCountry, line, logoUrl))
                 }
                 name = null
+                logoUrl = null
                 detectedCountry = fallbackCountry
             }
         }
@@ -631,6 +757,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         if (name.isEmpty()) return "OTHER"
         val upper = name.uppercase(Locale.ROOT)
         if (upper.length == 2 && upper.all { it in 'A'..'Z' }) return upper
+        val aliases = mapOf("UK" to "GB", "USA" to "US", "UAE" to "AE", "KOREA" to "KR")
+        aliases[upper]?.let { return it }
         return Locale.getISOCountries().firstOrNull {
             Locale("", it).displayCountry.equals(name, ignoreCase = true)
         } ?: "OTHER"
@@ -724,6 +852,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
     override fun onDestroy() {
         uiHandler.removeCallbacksAndMessages(null)
+        logoExecutor.shutdownNow()
+        logoCache.values.forEach { it.recycle() }
+        logoCache.clear()
         player.release()
     }
 }
