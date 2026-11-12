@@ -3,6 +3,9 @@ package com.adfree.tube
 import android.app.Activity
 import android.app.AlertDialog
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.widget.ScrollView
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -53,8 +56,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     ) {
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val v = super.getView(position, convertView, parent) as TextView
-            v.setTextColor(Color.WHITE)
-            v.textSize = if (isTv) 22f else 17f
+            val channel = shown.getOrNull(position)
+            val playing = channel != null && channel == current
+            v.setTextColor(if (playing) Color.parseColor("#7CF5C5") else Color.parseColor("#E8EEF8"))
+            v.textSize = if (isTv) 19f else 15f
+            v.typeface = if (playing) Typeface.DEFAULT_BOLD else Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            v.setPadding(dp(16), dp(13), dp(16), dp(13))
+            v.background = rounded(if (playing) "#183E3A" else "#14233B", 12)
+            v.minimumHeight = dp(if (isTv) 58 else 48)
             return v
         }
     }
@@ -71,13 +80,17 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             }
         })
 
-        status.setTextColor(Color.LTGRAY)
-        status.setPadding(16, 8, 16, 8)
+        status.setTextColor(Color.parseColor("#9EADC4"))
+        status.textSize = 12f
+        status.setPadding(dp(14), dp(8), dp(14), dp(8))
 
-        search.hint = "Channel dhoondein..."
-        search.setHintTextColor(Color.GRAY)
+        search.hint = "⌕  Search channels..."
+        search.setHintTextColor(Color.parseColor("#8293AE"))
         search.setTextColor(Color.WHITE)
+        search.textSize = 14f
         search.setSingleLine()
+        search.setPadding(dp(14), dp(11), dp(14), dp(11))
+        search.background = rounded("#172943", 14)
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
@@ -102,15 +115,45 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
 
         listPanel = LinearLayout(activity)
         listPanel.orientation = LinearLayout.VERTICAL
-        listPanel.addView(filters)
-        listPanel.addView(search)
+        listPanel.setPadding(dp(12), dp(12), dp(12), dp(10))
+        listPanel.setBackgroundColor(Color.parseColor("#0B1729"))
+
+        val heading = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(4), dp(3), dp(4), dp(10))
+        }
+        val title = TextView(activity).apply {
+            text = "LIVE TV"
+            setTextColor(Color.WHITE)
+            textSize = if (isTv) 23f else 19f
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
+        }
+        val subtitle = TextView(activity).apply {
+            text = "Explore channels • Watch live"
+            setTextColor(Color.parseColor("#8FA2BE"))
+            textSize = 11f
+        }
+        heading.addView(title)
+        heading.addView(subtitle)
+        listPanel.addView(heading)
+
+        val filterScroll = ScrollView(activity).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(filters)
+        }
+        listPanel.addView(filterScroll)
+        listPanel.addView(search, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10); bottomMargin = dp(4) })
         listPanel.addView(status)
         listPanel.addView(
             listView,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
 
-        playerContainer = FrameLayout(activity)
+        playerContainer = FrameLayout(activity).apply {
+            setBackgroundColor(Color.BLACK)
+        }
         playerContainer.addView(
             playerView,
             FrameLayout.LayoutParams(
@@ -119,9 +162,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             )
         )
         fullscreenButton = Button(activity).apply {
-            text = "⛶ Full Screen"
+            text = "⛶  Full Screen"
             isAllCaps = false
             textSize = 12f
+            setTextColor(Color.WHITE)
+            background = rounded("#D91C2D42", 22)
+            elevation = dp(5).toFloat()
+            setPadding(dp(14), dp(7), dp(14), dp(7))
             isFocusable = true
             setOnClickListener { toggleFullscreen() }
         }
@@ -137,9 +184,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         playerContainer.addView(fullscreenButton, buttonParams)
 
         channelsButton = Button(activity).apply {
-            text = "☷ Channels"
+            text = "☷  Channels"
             isAllCaps = false
             textSize = 12f
+            setTextColor(Color.WHITE)
+            background = rounded("#E61B2E49", 22)
+            elevation = dp(5).toFloat()
+            setPadding(dp(14), dp(7), dp(14), dp(7))
             isFocusable = true
             visibility = View.GONE
             setOnClickListener { showChannelPicker() }
@@ -156,6 +207,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
 
         rootLayout = LinearLayout(activity)
         rootLayout.orientation = if (isTv) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        rootLayout.setBackgroundColor(Color.parseColor("#07111F"))
         applyNormalLayout()
         view = rootLayout
         reload()
@@ -251,11 +303,24 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         }
     }
 
+    private fun dp(value: Int): Int =
+        (value * activity.resources.displayMetrics.density).toInt()
+
+    private fun rounded(color: String, radius: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(Color.parseColor(color))
+            cornerRadius = dp(radius).toFloat()
+        }
+
     private fun addFilterButton(parent: LinearLayout, label: String, action: () -> Unit) {
         val b = Button(activity)
         b.text = label
         b.isAllCaps = false
-        b.textSize = 12f
+        b.textSize = 11f
+        b.setTextColor(Color.parseColor("#DCE8F8"))
+        b.background = rounded("#1B304B", 18)
+        b.elevation = dp(2).toFloat()
+        b.setPadding(dp(8), dp(6), dp(8), dp(6))
         b.minWidth = 0
         b.minimumWidth = 0
         b.setOnClickListener { action() }
