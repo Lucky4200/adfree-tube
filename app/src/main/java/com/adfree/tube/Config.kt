@@ -26,10 +26,6 @@ object Config {
         Pair("AF", "https://iptv-org.github.io/iptv/countries/af.m3u"),
         // Raw country feeds add alternate public stream URLs for automatic retry
         Pair("PK", "https://iptv-org.github.io/iptv/raw/pk.m3u"),
-        Pair("IN", "https://iptv-org.github.io/iptv/raw/in.m3u"),
-        Pair("BD", "https://iptv-org.github.io/iptv/raw/bd.m3u"),
-        Pair("SA", "https://iptv-org.github.io/iptv/raw/sa.m3u"),
-        Pair("AF", "https://iptv-org.github.io/iptv/raw/af.m3u"),
         // Dedicated sports catalogue plus wider regional discovery feeds
         Pair("WORLD", "https://iptv-org.github.io/iptv/categories/sports.m3u"),
         Pair("WORLD", "https://iptv-org.github.io/iptv/regions/gcc.m3u"),
