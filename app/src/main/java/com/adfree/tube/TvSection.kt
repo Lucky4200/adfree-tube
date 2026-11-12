@@ -27,6 +27,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 class Channel(val name: String, val country: String, val urls: MutableList<String>)
 
@@ -330,7 +331,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         b.setOnClickListener { action() }
         parent.addView(
             b,
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginEnd = dp(6)
+            }
         )
     }
 
@@ -465,7 +468,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         "AF" -> "Afghanistan"
         "USR" -> "My playlist"
         "OTHER" -> "Other country"
-        else -> code.uppercase()
+        else -> Locale("", code.uppercase()).displayCountry.ifBlank { code.uppercase() }
     }
 
     private fun cleanName(raw: String): String {
