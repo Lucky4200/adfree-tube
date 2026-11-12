@@ -766,7 +766,6 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             }
             for ((fallbackCountry, url) in sources) {
                 if (fallbackCountry.length == 2) loadedCountryCodes.add(fallbackCountry)
-                if (fallbackCountry == "WORLD") loadedCountryCodes.addAll(Locale.getISOCountries().toList())
                 val text = fetch(url) ?: continue
                 for (entry in parseM3u(text, fallbackCountry)) {
                     val name = cleanName(entry.name)
