@@ -83,7 +83,6 @@ class MainActivity : Activity() {
             root.addView(bar)
             root.addView(content, contentParams)
         } else {
-            root.addView(createBrandHeader())
             root.addView(content, contentParams)
             root.addView(bar)
         }
