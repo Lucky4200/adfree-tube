@@ -16,8 +16,13 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+          accept-android-sdk-licenses: true
+
       - name: Install Android 17 SDK Platform 37.0
-        run: sdkmanager --channel=1 --install "platforms;android-37.0" "build-tools;37.0.0"
+        run: sdkmanager --channel=1 --install "platforms;android-37.0" "build-tools;36.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
