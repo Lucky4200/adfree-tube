@@ -109,6 +109,7 @@ object WebFactory {
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 BraveAdBlock.rememberPage(view, url)
+                BraveAdBlock.injectCosmetics(view, url)
                 view.evaluateJavascript(AdBlock.JS, null)
             }
 
