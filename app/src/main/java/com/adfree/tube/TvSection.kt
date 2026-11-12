@@ -227,6 +227,17 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             setMargins(margin, margin, margin, margin)
         }
         playerContainer.addView(channelsButton, channelsParams)
+        playerView.setControllerVisibilityListener(
+            PlayerView.ControllerVisibilityListener { visibility ->
+                if (isFullscreen) {
+                    if (visibility == View.VISIBLE) revealChannelControl()
+                    else {
+                        uiHandler.removeCallbacks(hideChannelButton)
+                        channelsButton.visibility = View.GONE
+                    }
+                }
+            }
+        )
 
         rootLayout = LinearLayout(activity)
         rootLayout.orientation = if (isTv) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
