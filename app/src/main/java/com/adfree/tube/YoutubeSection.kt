@@ -57,14 +57,27 @@ class YoutubeSection(private val activity: Activity) : Section {
 
     override fun onBack(): Boolean {
         if (chrome.hideIfShown()) return true
-        if (web.canGoBack()) {
-            web.goBack()
-            return true
+
+        // Detect an actively playing HTML5 video before navigating away.
+        // This preserves the current YouTube watch page when the app is backgrounded.
+        web.evaluateJavascript(
+            "(function(){var v=document.querySelector('video');return !!(v && !v.paused && v.readyState>2);})()"
+        ) { result ->
+            val playing = result == "true"
+            if (playing) {
+                activity.moveTaskToBack(true)
+            } else if (web.canGoBack()) {
+                web.goBack()
+            } else {
+                activity.finish()
+            }
         }
-        return false
+        return true
     }
 
     override fun onShow() = web.onResume()
+
+    // Called when switching tabs, not when the Activity itself goes to background.
     override fun onHide() = web.onPause()
     override fun onDestroy() = web.destroy()
 }

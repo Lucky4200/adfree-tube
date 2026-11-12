@@ -68,6 +68,7 @@ object WebFactory {
         val s = wv.settings
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
+        s.mediaPlaybackRequiresUserGesture = false
         s.allowFileAccess = false
         s.allowContentAccess = false
         s.setSupportMultipleWindows(false)

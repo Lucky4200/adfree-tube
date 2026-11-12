@@ -144,6 +144,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
 
     private fun toggleFullscreen() {
         isFullscreen = !isFullscreen
+        activity.requestedOrientation = if (isFullscreen) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        }
         if (isFullscreen) {
             rootLayout.removeAllViews()
             rootLayout.addView(
@@ -339,8 +344,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         return false
     }
 
+    override fun onShow() {
+        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR
+    }
+
     override fun onHide() {
         player.pause()
+        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     override fun onDestroy() {

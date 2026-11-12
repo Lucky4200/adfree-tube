@@ -104,7 +104,8 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        if (currentIndex >= 0) sections[currentIndex]?.onHide()
+        // Do not pause the YouTube WebView here: when the user backgrounds
+        // the app, an active video must be allowed to continue playing.
     }
 
     override fun onResume() {
