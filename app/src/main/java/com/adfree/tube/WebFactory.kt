@@ -3,7 +3,6 @@ package com.adfree.tube
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Bitmap
-import android.os.Message
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
@@ -21,12 +20,6 @@ class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
     private var customView: View? = null
     private var callback: WebChromeClient.CustomViewCallback? = null
 
-    override fun onCreateWindow(
-        view: WebView?,
-        isDialog: Boolean,
-        isUserGesture: Boolean,
-        resultMsg: Message?
-    ): Boolean = false
 
     override fun onShowCustomView(view: View?, cb: WebChromeClient.CustomViewCallback?) {
         if (customView != null) {
@@ -78,8 +71,9 @@ object WebFactory {
         s.domStorageEnabled = true
         s.allowFileAccess = false
         s.allowContentAccess = false
-        s.setSupportMultipleWindows(true)
-        s.javaScriptCanOpenWindowsAutomatically = false
+        // Keep target=_blank / popup movie links in the same WebView.
+        s.setSupportMultipleWindows(false)
+        s.javaScriptCanOpenWindowsAutomatically = true
         s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
         wv.webChromeClient = chrome
@@ -103,7 +97,7 @@ object WebFactory {
                 if (!request.isForMainFrame) return false
                 val url = request.url
                 val host = url.host ?: return true
-                if (url.scheme != "https") return true
+                if (url.scheme != "https" && url.scheme != "http") return true
                 if (AdBlock.isBlocked(url.toString())) return true
                 return !allowHost(host)
             }
