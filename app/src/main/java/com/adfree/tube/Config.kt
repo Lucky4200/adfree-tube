@@ -28,6 +28,13 @@ object Config {
         Pair("PK", "https://iptv-org.github.io/iptv/raw/pk.m3u"),
         // Dedicated sports catalogue plus wider regional discovery feeds
         Pair("WORLD", "https://iptv-org.github.io/iptv/categories/sports.m3u"),
+        // HD-first public streams; quality playlists are maintained separately
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/quality/1080p.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/quality/720p.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/verified.m3u"),
+        Pair("WORLD", "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"),
+        Pair("WORLD", "https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u"),
+        Pair("WORLD", "https://raw.githubusercontent.com/freecasthub/public-iptv/main/sports.m3u"),
         Pair("WORLD", "https://iptv-org.github.io/iptv/regions/gcc.m3u"),
         Pair("WORLD", "https://iptv-org.github.io/iptv/regions/arab.m3u"),
         Pair("WORLD", "https://iptv-org.github.io/iptv/regions/sas.m3u"),
