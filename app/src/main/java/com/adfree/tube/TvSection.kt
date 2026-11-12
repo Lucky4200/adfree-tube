@@ -10,6 +10,9 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
+import android.view.KeyEvent
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -31,7 +34,7 @@ import java.util.Locale
 
 class Channel(val name: String, val country: String, val urls: MutableList<String>)
 
-class TvSection(private val activity: Activity, private val isTv: Boolean) : Section {
+class TvSection(private val activity: Activity, private val isTv: Boolean, private val onFullscreenChanged: (Boolean) -> Unit = {}) : Section {
 
     private val prefs = activity.getSharedPreferences("adfree", Activity.MODE_PRIVATE)
     private val player: ExoPlayer = ExoPlayer.Builder(activity).build()
@@ -45,6 +48,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     private lateinit var fullscreenButton: Button
     private lateinit var channelsButton: Button
     private var isFullscreen = false
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val hideChannelButton = Runnable { channelsButton.visibility = View.GONE }
 
     private var all: List<Channel> = emptyList()
     private var shown: List<Channel> = emptyList()
@@ -74,6 +79,19 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     init {
         playerView.player = player
         playerView.keepScreenOn = true
+        playerView.isFocusable = true
+        playerView.setOnClickListener {
+            if (isFullscreen) revealChannelControl()
+        }
+        playerView.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && isFullscreen) {
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { changeChannel(1); true }
+                    KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { changeChannel(-1); true }
+                    else -> false
+                }
+            } else false
+        }
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 urlIdx++
@@ -233,10 +251,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
             )
-            fullscreenButton.text = "⤡ Exit Full Screen"
-            channelsButton.visibility = View.VISIBLE
+            fullscreenButton.visibility = View.GONE
+            onFullscreenChanged(true)
+            revealChannelControl()
         } else {
+            uiHandler.removeCallbacks(hideChannelButton)
             channelsButton.visibility = View.GONE
+            fullscreenButton.visibility = View.VISIBLE
+            onFullscreenChanged(false)
             exitImmersiveMode()
             activity.requestedOrientation = if (isTv) {
                 android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -263,7 +285,23 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
     }
 
+    private fun revealChannelControl() {
+        uiHandler.removeCallbacks(hideChannelButton)
+        channelsButton.visibility = View.VISIBLE
+        uiHandler.postDelayed(hideChannelButton, 3500)
+    }
+
+    private fun changeChannel(direction: Int) {
+        if (all.isEmpty()) return
+        val currentIndex = all.indexOf(current)
+        val next = if (currentIndex < 0) 0 else (currentIndex + direction + all.size) % all.size
+        play(all[next])
+        if (isFullscreen) revealChannelControl()
+    }
+
     private fun showChannelPicker() {
+        uiHandler.removeCallbacks(hideChannelButton)
+        channelsButton.visibility = View.GONE
         if (all.isEmpty()) {
             Toast.makeText(activity, "Channel list abhi load nahi hui", Toast.LENGTH_SHORT).show()
             return
@@ -274,12 +312,16 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
             "$prefix${ch.name} (${ch.country})"
         }.toTypedArray()
         AlertDialog.Builder(activity)
-            .setTitle("TV Channels")
+             .setTitle("TV Channels")
             .setSingleChoiceItems(labels, selected) { dialog, which ->
                 if (which in all.indices) play(all[which])
                 dialog.dismiss()
+                if (isFullscreen) revealChannelControl()
             }
-            .setNegativeButton("Close", null)
+            .setNegativeButton("Close") { dialog, _ ->
+                dialog.dismiss()
+                if (isFullscreen) revealChannelControl()
+            }
             .show()
     }
 
@@ -525,7 +567,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         player.pause()
         if (isFullscreen) {
             isFullscreen = false
+            uiHandler.removeCallbacks(hideChannelButton)
             channelsButton.visibility = View.GONE
+            fullscreenButton.visibility = View.VISIBLE
+            onFullscreenChanged(false)
             exitImmersiveMode()
             applyNormalLayout()
         }
@@ -537,6 +582,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
     }
 
     override fun onDestroy() {
+        uiHandler.removeCallbacksAndMessages(null)
         player.release()
     }
 }
