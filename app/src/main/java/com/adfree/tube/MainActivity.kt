@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.UiModeManager
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -15,6 +17,7 @@ class MainActivity : Activity() {
 
     private lateinit var content: FrameLayout
     private val tabs = mutableListOf<Button>()
+    private lateinit var tabsBar: LinearLayout
     private val sections = arrayOfNulls<Section>(3)
     private val names = listOf("▶ YouTube", "📺 TV", "🎬 Movies")
     private var currentIndex = -1
@@ -39,19 +42,35 @@ class MainActivity : Activity() {
         content = FrameLayout(this)
 
         val bar = LinearLayout(this)
+        tabsBar = bar
         bar.orientation = LinearLayout.HORIZONTAL
         bar.gravity = Gravity.CENTER
+        bar.setPadding(dp(10), dp(9), dp(10), dp(9))
+        bar.setBackgroundColor(Color.rgb(7, 16, 30))
         val textSize = if (isTv) 24f else 16f
         names.forEachIndexed { i, n ->
             val b = Button(this)
-            b.text = n
-            b.textSize = textSize
+            b.text = when (i) {
+                0 -> "▶  YOUTUBE"
+                1 -> "▣  LIVE TV"
+                else -> "▰  MOVIES"
+            }
+            b.textSize = if (isTv) 17f else 11f
+            b.isAllCaps = false
+            b.setTextColor(Color.WHITE)
+            b.typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            b.background = navBackground(if (i == 0) "#1B8D78" else "#17263D")
+            b.elevation = dp(3).toFloat()
+            b.minHeight = dp(if (isTv) 58 else 48)
             b.isFocusable = true
             b.setOnClickListener { show(i) }
             tabs.add(b)
             bar.addView(
                 b,
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                LinearLayout.LayoutParams(0, dp(if (isTv) 58 else 48), 1f).apply {
+                    marginStart = dp(4)
+                    marginEnd = dp(4)
+                }
             )
         }
 
@@ -76,7 +95,7 @@ class MainActivity : Activity() {
         if (s == null) {
             s = when (i) {
                 0 -> YoutubeSection(this)
-                1 -> TvSection(this, isTv)
+                1 -> TvSection(this, isTv) { fullscreen -> tabsBar.visibility = if (fullscreen) android.view.View.GONE else android.view.View.VISIBLE }
                 else -> MoviesSection(this)
             }
             sections[i] = s
@@ -98,7 +117,19 @@ class MainActivity : Activity() {
         )
         s.onShow()
         currentIndex = index
-        tabs.forEachIndexed { i, b -> b.alpha = if (i == index) 1f else 0.6f }
+        tabs.forEachIndexed { i, b ->
+            b.alpha = if (i == index) 1f else 0.72f
+            b.background = navBackground(if (i == index) "#1B8D78" else "#17263D")
+        }
+        tabsBar.visibility = android.view.View.VISIBLE
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun navBackground(color: String): GradientDrawable = GradientDrawable().apply {
+        setColor(Color.parseColor(color))
+        cornerRadius = dp(15).toFloat()
+        setStroke(dp(1), Color.parseColor("#30445F"))
     }
 
     @Deprecated("Deprecated in Java")
