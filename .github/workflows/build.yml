@@ -18,8 +18,9 @@ jobs:
 
       - name: Install Android SDK 37
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager --install "platforms;android-37" "build-tools;36.0.0"
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager
+          yes | "$SDKMANAGER" --licenses
+          "$SDKMANAGER" --install "platforms;android-37" "build-tools;36.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
