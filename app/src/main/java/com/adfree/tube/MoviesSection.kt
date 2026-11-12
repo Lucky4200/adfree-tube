@@ -33,7 +33,7 @@ class MoviesSection(private val activity: Activity) : Section {
 
         web = WebFactory.create(
             activity, chrome,
-            { host -> Config.MOVIE_HOSTS.any { host == it || host.endsWith(".$it") } },
+            { host -> host.isNotBlank() },
             {
                 Toast.makeText(activity, "Movies ka link nahi khula. Internet check karein.", Toast.LENGTH_LONG).show()
             },
