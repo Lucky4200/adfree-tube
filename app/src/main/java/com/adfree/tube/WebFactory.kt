@@ -56,13 +56,26 @@ class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
 
 object WebFactory {
 
+    // Best-effort: prevent YouTube's page-visibility handler from pausing its player.
+    // Android power policy or YouTube itself may still restrict background playback.
+    private const val BACKGROUND_MEDIA_JS = """
+        (function() {
+          try {
+            Object.defineProperty(document, 'hidden', { configurable: true, get: function(){ return false; } });
+            Object.defineProperty(document, 'visibilityState', { configurable: true, get: function(){ return 'visible'; } });
+            document.addEventListener('visibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
+          } catch (e) {}
+        })();
+    """
+
     @SuppressLint("SetJavaScriptEnabled")
     fun create(
         activity: Activity,
         chrome: FullscreenChrome,
         allowHost: (String) -> Boolean,
         onMainFrameError: () -> Unit,
-        onLoaded: () -> Unit
+        onLoaded: () -> Unit,
+        keepMediaInBackground: Boolean = false
     ): WebView {
         val wv = WebView(activity)
         val s = wv.settings
@@ -118,6 +131,7 @@ object WebFactory {
                 super.onPageFinished(view, url)
                 BraveAdBlock.injectCosmetics(view, url)
                 view.evaluateJavascript(AdBlock.JS, null)
+                if (keepMediaInBackground) view.evaluateJavascript(BACKGROUND_MEDIA_JS, null)
                 onLoaded()
             }
 
