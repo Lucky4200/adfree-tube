@@ -88,6 +88,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean) : Sec
         addFilterButton(filters, "All") { country = "ALL"; applyFilter() }
         addFilterButton(filters, "Pakistan") { country = "PK"; applyFilter() }
         addFilterButton(filters, "India") { country = "IN"; applyFilter() }
+        addFilterButton(filters, "Extra") { country = "USR"; applyFilter() }
         addFilterButton(filters, "+Link") { addPlaylistDialog() }
         addFilterButton(filters, "Reload") { reload() }
 
