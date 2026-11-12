@@ -13,13 +13,13 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import io.github.edsuns.adfilter.AdFilter
 
-// Fullscreen video support + popup band
+// Fullscreen video support + popup handling
 class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
 
     private var customView: View? = null
     private var callback: WebChromeClient.CustomViewCallback? = null
-
 
     override fun onShowCustomView(view: View?, cb: WebChromeClient.CustomViewCallback?) {
         if (customView != null) {
@@ -71,10 +71,12 @@ object WebFactory {
         s.domStorageEnabled = true
         s.allowFileAccess = false
         s.allowContentAccess = false
-        // Keep target=_blank / popup movie links in the same WebView.
         s.setSupportMultipleWindows(false)
         s.javaScriptCanOpenWindowsAutomatically = true
         s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+
+        val filter = AdFilter.get()
+        filter.setupWebView(wv)
 
         wv.webChromeClient = chrome
         wv.webViewClient = object : WebViewClient() {
@@ -83,6 +85,15 @@ object WebFactory {
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
+                // First apply EasyList/AdGuard-compatible native network rules.
+                val nativeResponse = try {
+                    filter.shouldIntercept(view, request).resourceResponse
+                } catch (_: Exception) {
+                    null
+                }
+                if (nativeResponse != null) return nativeResponse
+
+                // Retain the app's fast emergency rules as a second layer.
                 return if (AdBlock.isBlocked(request.url.toString())) {
                     AdBlock.empty()
                 } else {
@@ -104,11 +115,19 @@ object WebFactory {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                try {
+                    filter.performScript(view, url)
+                } catch (_: Exception) {
+                }
                 view.evaluateJavascript(AdBlock.JS, null)
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
                 super.onPageFinished(view, url)
+                try {
+                    filter.performScript(view, url)
+                } catch (_: Exception) {
+                }
                 view.evaluateJavascript(AdBlock.JS, null)
                 onLoaded()
             }
