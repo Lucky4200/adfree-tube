@@ -44,7 +44,8 @@ class YoutubeSection(private val activity: Activity) : Section {
             {
                 Toast.makeText(activity, "YouTube load nahi hua. Internet check karein.", Toast.LENGTH_LONG).show()
             },
-            {}
+            {},
+            keepMediaInBackground = true
         )
 
         col.addView(bar)
