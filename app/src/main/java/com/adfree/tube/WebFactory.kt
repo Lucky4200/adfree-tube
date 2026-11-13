@@ -5,6 +5,8 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.os.Build
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -79,12 +81,18 @@ object WebFactory {
         val s = wv.settings
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
+        s.databaseEnabled = true
+        s.loadsImagesAutomatically = true
+        s.blockNetworkImage = false
+        s.cacheMode = WebSettings.LOAD_DEFAULT
         s.mediaPlaybackRequiresUserGesture = false
         s.allowFileAccess = false
         s.allowContentAccess = false
         s.setSupportMultipleWindows(false)
-        s.javaScriptCanOpenWindowsAutomatically = true
+        s.javaScriptCanOpenWindowsAutomatically = false
         s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        CookieManager.getInstance().setAcceptCookie(true)
+        if (Build.VERSION.SDK_INT >= 21) CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true)
 
         wv.webChromeClient = chrome
         wv.webViewClient = object : WebViewClient() {
@@ -140,5 +148,11 @@ object WebFactory {
             }
         }
         return wv
+    }
+
+    fun showErrorPage(view: WebView, destination: String, title: String) {
+        val safeUrl = destination.replace("&", "&amp;").replace("'", "%27")
+        val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta charset="utf-8"><style>body{background:#06101e;color:white;font-family:Arial;text-align:center;padding:15vh 24px}p{color:#b8c8dc;line-height:1.6}button{background:#e32636;color:white;border:0;border-radius:12px;padding:14px 24px;font-size:16px}</style></head><body><h2>$title load nahi hua</h2><p>Internet ya purana WebView masla kar sakta hai. Dobara koshish karein.</p><button onclick="location.href='$safeUrl'">Retry / Dobara kholen</button></body></html>"""
+        view.loadDataWithBaseURL(destination, html, "text/html", "UTF-8", null)
     }
 }
