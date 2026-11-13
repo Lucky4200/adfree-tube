@@ -90,7 +90,7 @@ class YoutubeSection(private val activity: Activity) : Section {
             activity, chrome,
             { host -> host.isNotBlank() },
             {
-                Toast.makeText(activity, "YouTube load nahi hua. Internet check karein.", Toast.LENGTH_LONG).show()
+                WebFactory.showErrorPage(web, Config.YOUTUBE_URL, "YouTube")
             },
             {},
             keepMediaInBackground = true
