@@ -12,7 +12,7 @@ android {
         // Android 7.1 is API 25. The native Brave engine is loaded only on API 26+.
         minSdk = 25
         targetSdk = 34
-        versionCode = 10
+        versionCode = 11
         versionName = "1.0"
     }
 
