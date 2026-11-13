@@ -22,7 +22,9 @@ object AdBlock {
             u.contains("/ads/") ||
             u.contains("adsbygoogle") ||
             u.contains("popunder") ||
-            u.contains("/banner_ads")
+            u.contains("/banner_ads") ||
+            u.contains("/pagead/") ||
+            u.contains("/api/stats/ads")
     }
 
     fun empty(): WebResourceResponse =
