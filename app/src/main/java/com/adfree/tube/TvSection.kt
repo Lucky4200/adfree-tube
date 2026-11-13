@@ -659,28 +659,38 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             showMoreCountries(Locale.getISOCountries().toList())
         }
         addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports ✓" else "🏆 Sports") {
-            sportsOnly = !sportsOnly
-            applyFilter()
+            if (requireCountryForCategory()) {
+                sportsOnly = !sportsOnly
+                applyFilter()
+                buildCountryButtons()
+            }
         }
         addFilterButton(countryFilters, if (contentCategory == "KIDS") "🧒 Kids ✓" else "🧒 Kids") {
-            contentCategory = if (contentCategory == "KIDS") "ALL" else "KIDS"
-            applyFilter()
-            buildCountryButtons()
+            toggleContentCategory("KIDS")
         }
         addFilterButton(countryFilters, if (contentCategory == "ANIMATION") "🎨 Animation ✓" else "🎨 Animation") {
-            contentCategory = if (contentCategory == "ANIMATION") "ALL" else "ANIMATION"
-            applyFilter()
-            buildCountryButtons()
+            toggleContentCategory("ANIMATION")
         }
         addFilterButton(countryFilters, if (contentCategory == "DISCOVERY") "🌿 Discovery ✓" else "🌿 Discovery") {
-            contentCategory = if (contentCategory == "DISCOVERY") "ALL" else "DISCOVERY"
-            applyFilter()
-            buildCountryButtons()
+            toggleContentCategory("DISCOVERY")
         }
         addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
         addFilterButton(countryFilters, "★ Official") { showOfficialServices() }
         addFilterButton(countryFilters, "↻") { reload() }
         refreshCountryChips()
+    }
+
+    private fun requireCountryForCategory(): Boolean {
+        if (country != "ALL" && country != "OTHER") return true
+        Toast.makeText(activity, "Pehle koi country select karein", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    private fun toggleContentCategory(category: String) {
+        if (!requireCountryForCategory()) return
+        contentCategory = if (contentCategory == category) "ALL" else category
+        applyFilter()
+        buildCountryButtons()
     }
 
     private fun addCountryChip(code: String, flag: String, label: String) {
@@ -695,8 +705,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             isFocusable = true
             setOnClickListener {
                 country = code
-                applyFilter()
-                refreshCountryChips()
+                if (code == "ALL") {
+                    contentCategory = "ALL"
+                    sportsOnly = false
+                    buildCountryButtons()
+                } else {
+                    applyFilter()
+                    refreshCountryChips()
+                }
             }
         }
         countryButtons[code] = chip
