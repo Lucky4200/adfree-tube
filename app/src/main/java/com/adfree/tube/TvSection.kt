@@ -798,45 +798,74 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     }
 
     private fun reload() {
-        status.text = "Channels load ho rahe hain..."
+        status.text = "TV channels tez load ho rahe hain..."
         Thread {
             val map = LinkedHashMap<String, Channel>()
-            val sources = ArrayList<Pair<String, String>>(Config.PLAYLISTS)
-            (prefs.getStringSet("playlists", emptySet()) ?: emptySet()).forEach {
-                sources.add(Pair("USR", it))
+            val custom = (prefs.getStringSet("playlists", emptySet()) ?: emptySet())
+                .map { Pair("USR", it) }
+            // Avoid downloading huge global catalogues sequentially on older Android TVs.
+            // Country and regional feeds cover the most useful channels; other countries
+            // are loaded on demand from the country selector.
+            val preferred = Config.PLAYLISTS.filter { (_, url) ->
+                url.contains("/countries/") ||
+                url.contains("/categories/sports.m3u") ||
+                url.contains("/regions/gcc.m3u") ||
+                url.contains("/regions/arab.m3u") ||
+                url.contains("/regions/sas.m3u") ||
+                url.contains("/verified.m3u")
             }
-            for ((fallbackCountry, url) in sources) {
-                if (fallbackCountry.length == 2) loadedCountryCodes.add(fallbackCountry)
-                val text = fetch(url) ?: continue
-                for (entry in parseM3u(text, fallbackCountry)) {
-                    val name = cleanName(entry.name)
-                    if (name.isEmpty()) continue
-                    val key = entry.country + "|" + name.lowercase()
-                    val ch = map.getOrPut(key) { Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category) }
-                    if (!ch.urls.contains(entry.url)) ch.urls.add(entry.url)
-                    if (ch.logoUrl.isNullOrBlank() && !entry.logoUrl.isNullOrBlank()) ch.logoUrl = entry.logoUrl
-                    if (ch.category.isNullOrBlank()) ch.category = entry.category
+            val sources = (preferred + custom).distinctBy { it.second }
+            val pool = Executors.newFixedThreadPool(4)
+            try {
+                val tasks = sources.map { source ->
+                    java.util.concurrent.Callable {
+                        val body = fetch(source.second)
+                        source.first to (body?.let { parseM3u(it, source.first) } ?: emptyList())
+                    }
                 }
+                val results = pool.invokeAll(tasks, 28, java.util.concurrent.TimeUnit.SECONDS)
+                for (future in results) {
+                    if (future.isCancelled) continue
+                    try {
+                        val (fallbackCountry, entries) = future.get()
+                        for (entry in entries) {
+                            val name = cleanName(entry.name)
+                            if (name.isBlank()) continue
+                            val key = entry.country + "|" + name.lowercase(Locale.ROOT)
+                            val channel = map.getOrPut(key) {
+                                Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category)
+                            }
+                            if (!channel.urls.contains(entry.url)) channel.urls.add(entry.url)
+                            if (channel.logoUrl.isNullOrBlank()) channel.logoUrl = entry.logoUrl
+                            if (channel.category.isNullOrBlank()) channel.category = entry.category
+                        }
+                        if (fallbackCountry.length == 2) loadedCountryCodes.add(fallbackCountry)
+                    } catch (_: Exception) { }
+                }
+            } catch (_: Exception) {
+            } finally {
+                pool.shutdownNow()
             }
-            map.values.forEach { ch ->
-                ch.urls.sortBy { if (it.startsWith("https")) 0 else 1 }
+
+            map.values.forEach { channel ->
+                channel.urls.sortBy { if (it.startsWith("https")) 0 else 1 }
             }
             val priority = listOf("PK", "IN", "BD", "SA", "AF")
             val result = map.values.sortedWith(
                 compareBy<Channel> {
                     val index = priority.indexOf(it.country)
                     if (index >= 0) index else priority.size
-                }.thenBy { it.country }.thenBy { it.name.lowercase() }
+                }.thenBy { it.country }.thenBy { it.name.lowercase(Locale.ROOT) }
             )
             activity.runOnUiThread {
                 all = result
                 buildCountryButtons()
-                status.text = if (all.isEmpty()) {
-                    "Koi channel nahi mila. Internet check karein ya +Link se playlist add karein."
-                } else {
-                    "${all.size} channels • All countries"
-                }
                 applyFilter()
+                status.text = if (all.isEmpty()) {
+                    "Channels load nahi huay. Internet check karein aur Retry karein."
+                } else {
+                    "${all.size} channels loaded • All countries"
+                }
             }
         }.start()
     }
@@ -868,8 +897,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         var connection: HttpURLConnection? = null
         return try {
             connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 15000
-            connection.readTimeout = 60000
+            connection.connectTimeout = 7000
+            connection.readTimeout = 12000
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
             connection.setRequestProperty("Accept", "*/*")
