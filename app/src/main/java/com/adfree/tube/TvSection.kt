@@ -33,6 +33,9 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.AspectRatioFrameLayout
 import java.net.HttpURLConnection
@@ -47,7 +50,15 @@ private data class ParsedChannel(val name: String, val country: String, val url:
 class TvSection(private val activity: Activity, private val isTv: Boolean, private val onFullscreenChanged: (Boolean) -> Unit = {}) : Section {
 
     private val prefs = activity.getSharedPreferences("adfree", Activity.MODE_PRIVATE)
-    private val player: ExoPlayer = ExoPlayer.Builder(activity).build()
+    private val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+        .setUserAgent("Mozilla/5.0 (Linux; Android 7.1; TV) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
+        .setConnectTimeoutMs(15000)
+        .setReadTimeoutMs(20000)
+        .setAllowCrossProtocolRedirects(true)
+    private val mediaDataSourceFactory = DefaultDataSource.Factory(activity, httpDataSourceFactory)
+    private val player: ExoPlayer = ExoPlayer.Builder(activity)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(mediaDataSourceFactory))
+        .build()
     private val playerView: PlayerView by lazy { LayoutInflater.from(activity).inflate(R.layout.tv_player_view, null) as PlayerView }
     private val status = TextView(activity)
     private val listView = ListView(activity)
@@ -812,7 +823,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 url.contains("/regions/gcc.m3u") ||
                 url.contains("/regions/arab.m3u") ||
                 url.contains("/regions/sas.m3u") ||
-                url.contains("/verified.m3u")
+                url.contains("/verified.m3u") ||
+                url.contains("/playlists/all.m3u") ||
+                url.contains("/playlists/quality/720p.m3u")
             }
             val sources = (preferred + custom).distinctBy { it.second }
             val pool = Executors.newFixedThreadPool(4)
