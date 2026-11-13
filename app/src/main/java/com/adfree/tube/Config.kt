@@ -28,6 +28,16 @@ object Config {
         Pair("PK", "https://iptv-org.github.io/iptv/raw/pk.m3u"),
         // Dedicated sports catalogue plus wider regional discovery feeds
         Pair("WORLD", "https://iptv-org.github.io/iptv/categories/sports.m3u"),
+        // Full global catalogue plus category feeds (free/public streams)
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/all.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/documentary.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/kids.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/entertainment.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/movies.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/news.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/music.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/series.m3u"),
+        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/sports.m3u"),
         // HD-first public streams; quality playlists are maintained separately
         Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/quality/1080p.m3u"),
         Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/quality/720p.m3u"),
