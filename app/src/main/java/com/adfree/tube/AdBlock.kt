@@ -36,14 +36,32 @@ object AdBlock {
   if (window.__adFreeTubeAdHelperInstalled) return;
   window.__adFreeTubeAdHelperInstalled = true;
 
-  try { window.open = function(){ return null; }; } catch(e) {}
+  try {
+    window.open = function(){ return null; };
+    window.addEventListener('click', function(e) {
+      var node = e.target;
+      while (node && node.tagName !== 'A') node = node.parentElement;
+      if (!node) return;
+      var href = (node.href || '').toLowerCase();
+      if (/doubleclick|googlesyndication|googleadservices|adservice|popads|popcash|propellerads|exoclick|clickadu|hilltopads|adsterra|onclickads|onclkds|trafficjunky|monetag|admaven|ad-maven|taboola|outbrain|mgid|revcontent/.test(href)) {
+        e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+      }
+    }, true);
+    window.addEventListener('beforeunload', function(e) {
+      // Prevent unsolicited popup-style navigations; normal same-tab links remain usable.
+      if (window.__adFreeTubePopupNavigation) { e.preventDefault(); e.returnValue = ''; }
+    }, true);
+  } catch(e) {}
 
   // Hide common page ads, but never hide YouTube's player ad container:
   // doing so can hide the Skip Ad button itself.
   try {
     var css = 'ins.adsbygoogle,[id^="google_ads"],[class*="adsbox"],[class*="ad-banner"],' +
-      '[id*="ad-container"],[class*="popup-ad"],iframe[src*="doubleclick"],' +
-      'iframe[src*="/ads/"],ytd-ad-slot-renderer{display:none!important}';
+      '[id*="ad-container"],[class*="popup-ad"],[class*="ad-wrapper"],' +
+      '[id^="ad-"],[class^="ad-"],[class*="advertisement"],[id*="sponsor-ad"],' +
+      'iframe[src*="doubleclick"],iframe[src*="googlesyndication"],' +
+      'iframe[src*="/ads/"],iframe[src*="popads"],iframe[src*="adsterra"],' +
+      'ytd-ad-slot-renderer{display:none!important}';
     if (!document.querySelector('style[data-adfree-tube="ad-css"]')) {
       var s = document.createElement('style');
       s.setAttribute('data-adfree-tube', 'ad-css');
