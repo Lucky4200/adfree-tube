@@ -68,7 +68,7 @@ class MoviesSection(private val activity: Activity) : Section {
             activity, chrome,
             { host -> host.isNotBlank() },
             {
-                Toast.makeText(activity, "Movies ka link nahi khula. Internet check karein.", Toast.LENGTH_LONG).show()
+                WebFactory.showErrorPage(web, Config.MOVIES_URL, "Movies")
             },
             {}
         )
