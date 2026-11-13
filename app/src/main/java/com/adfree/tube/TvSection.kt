@@ -651,11 +651,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         extras.forEach { code -> addCountryChip(code, countryFlag(code), countryLabel(code)) }
         if (all.any { it.country == "OTHER" }) addCountryChip("OTHER", "🌍", "Other")
         if (all.any { it.country == "USR" }) addCountryChip("USR", "📂", "My")
-        addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports ✓" else "🏆 Sports") {
+        addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports Only ✓" else "🏆 Sports Only") {
             sportsOnly = !sportsOnly
             applyFilter()
         }
-        addFilterButton(countryFilters, "🌍 More countries") { showMoreCountries(Locale.getISOCountries().toList()) }
+        addFilterButton(countryFilters, "🌍 All Countries") { showMoreCountries(Locale.getISOCountries().toList()) }
         addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
         addFilterButton(countryFilters, "★ Official") { showOfficialServices() }
         addFilterButton(countryFilters, "↻") { reload() }
@@ -717,7 +717,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             "${countryFlag(code)}  ${countryLabel(code)}"
         }.toTypedArray()
         AlertDialog.Builder(activity)
-            .setTitle("More countries")
+            .setTitle("Select any country")
             .setItems(labels) { dialog, which ->
                 if (which in available.indices) {
                     val selectedCode = available[which]
@@ -824,7 +824,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 status.text = if (all.isEmpty()) {
                     "Koi channel nahi mila. Internet check karein ya +Link se playlist add karein."
                 } else {
-                    "${all.size} channels"
+                    "${all.size} channels • All countries"
                 }
                 applyFilter()
             }
