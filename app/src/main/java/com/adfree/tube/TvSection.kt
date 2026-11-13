@@ -75,6 +75,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private var shown: List<Channel> = emptyList()
     private var country = "ALL"
     private var sportsOnly = false
+    private var contentCategory = "ALL"
     private var current: Channel? = null
     private var urlIdx = 0
 
@@ -636,26 +637,35 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private fun buildCountryButtons() {
         countryFilters.removeAllViews()
         countryButtons.clear()
-        val primary = listOf(
-            Triple("PK", "🇵🇰", "Pakistan"),
-            Triple("IN", "🇮🇳", "India"),
-            Triple("BD", "🇧🇩", "Bangladesh"),
-            Triple("SA", "🇸🇦", "Saudi Arabia"),
-            Triple("AF", "🇦🇫", "Afghanistan")
-        )
+
+        // Keep the three requested South Asian country shortcuts visible.
         addCountryChip("ALL", "🌐", "All")
-        primary.forEach { (code, flag, label) -> addCountryChip(code, flag, label) }
-        val extras = all.map { it.country }.distinct()
-            .filter { it !in listOf("PK", "IN", "BD", "SA", "AF", "USR", "OTHER") }
-            .sorted()
-        extras.forEach { code -> addCountryChip(code, countryFlag(code), countryLabel(code)) }
-        if (all.any { it.country == "OTHER" }) addCountryChip("OTHER", "🌍", "Other")
-        if (all.any { it.country == "USR" }) addCountryChip("USR", "📂", "My")
-        addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports Only ✓" else "🏆 Sports Only") {
+        addCountryChip("PK", "🇵🇰", "Pakistan")
+        addCountryChip("IN", "🇮🇳", "India")
+        addCountryChip("BD", "🇧🇩", "Bangladesh")
+
+        addFilterButton(countryFilters, "🌍 More Countries") {
+            showMoreCountries(Locale.getISOCountries().toList())
+        }
+        addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports ✓" else "🏆 Sports") {
             sportsOnly = !sportsOnly
             applyFilter()
         }
-        addFilterButton(countryFilters, "🌍 All Countries") { showMoreCountries(Locale.getISOCountries().toList()) }
+        addFilterButton(countryFilters, if (contentCategory == "KIDS") "🧒 Kids ✓" else "🧒 Kids") {
+            contentCategory = if (contentCategory == "KIDS") "ALL" else "KIDS"
+            applyFilter()
+            buildCountryButtons()
+        }
+        addFilterButton(countryFilters, if (contentCategory == "ANIMATION") "🎨 Animation ✓" else "🎨 Animation") {
+            contentCategory = if (contentCategory == "ANIMATION") "ALL" else "ANIMATION"
+            applyFilter()
+            buildCountryButtons()
+        }
+        addFilterButton(countryFilters, if (contentCategory == "DISCOVERY") "🌿 Discovery ✓" else "🌿 Discovery") {
+            contentCategory = if (contentCategory == "DISCOVERY") "ALL" else "DISCOVERY"
+            applyFilter()
+            buildCountryButtons()
+        }
         addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
         addFilterButton(countryFilters, "★ Official") { showOfficialServices() }
         addFilterButton(countryFilters, "↻") { reload() }
@@ -842,6 +852,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             }
             countryMatch &&
                 (!sportsOnly || isSportsChannel(it)) &&
+                matchesContentCategory(it) &&
                 (q.isEmpty() || it.name.contains(q, ignoreCase = true))
         }
         adapter.clear()
@@ -940,6 +951,21 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         val category = channel.category.orEmpty().lowercase(Locale.ROOT)
         if (category.split(Regex("[,;|]")).any { it.trim() == "sports" }) return true
         return channel.name.contains(Regex("\\b(sports?|cricket|football|soccer|tennis|golf|racing|motorsport|wrestling|boxing|fight|nba|nfl|formula ?1|f1)\\b", RegexOption.IGNORE_CASE))
+    }
+
+    private fun matchesContentCategory(channel: Channel): Boolean {
+        if (contentCategory == "ALL") return true
+        val category = channel.category.orEmpty().lowercase(Locale.ROOT)
+        val name = channel.name.lowercase(Locale.ROOT)
+        return when (contentCategory) {
+            "KIDS" -> category.contains("kid") || category.contains("child") ||
+                name.contains(Regex("\\b(kids?|children|junior)\\b"))
+            "ANIMATION" -> category.contains("animation") || category.contains("cartoon") ||
+                category.contains("anime") || name.contains(Regex("\\b(animation|cartoon|anime)\\b"))
+            "DISCOVERY" -> category.contains("documentary") || category.contains("discovery") ||
+                name.contains(Regex("\\b(discovery|documentary|nat geo|national geographic|animal planet|history)\\b"))
+            else -> true
+        }
     }
 
     private fun cleanName(raw: String): String {
