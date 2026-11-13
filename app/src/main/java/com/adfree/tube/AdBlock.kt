@@ -58,8 +58,7 @@ object AdBlock {
       '.ytp-ad-skip-button',
       '.ytp-ad-skip-button-modern',
       '.ytp-skip-ad-button',
-      'button[aria-label*="Skip ad" i]',
-      'button[aria-label*="Skip Ads" i]',
+      'button[aria-label]',
       '.ytp-ad-overlay-close-button'
     ];
     try {
@@ -71,8 +70,8 @@ object AdBlock {
           var style = window.getComputedStyle(el);
           var label = ((el.getAttribute('aria-label') || '') + ' ' +
                        (el.innerText || el.textContent || '')).toLowerCase();
-          var isSkip = selectors[i].indexOf('close-button') < 0 ||
-                       label.indexOf('skip') >= 0;
+          var isSkip = label.indexOf('skip') >= 0 &&
+                       label.indexOf('ad') >= 0;
           if (isSkip && rect.width > 0 && rect.height > 0 &&
               style.display !== 'none' && style.visibility !== 'hidden' &&
               !el.disabled && el.getAttribute('aria-disabled') !== 'true') {
