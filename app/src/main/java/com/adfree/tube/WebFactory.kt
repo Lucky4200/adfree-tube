@@ -56,8 +56,6 @@ class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
 
 object WebFactory {
 
-    // Best-effort: prevent YouTube's page-visibility handler from pausing its player.
-    // Android power policy or YouTube itself may still restrict background playback.
     private const val BACKGROUND_MEDIA_JS = """
         (function() {
           try {
@@ -95,12 +93,9 @@ object WebFactory {
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
-                // Brave's native adblock-rust engine checks EasyList/uBlock-compatible rules.
-                if (BraveAdBlock.shouldBlock(view, request)) {
-                    return BraveAdBlock.emptyResponse()
+                if (BraveCompat.shouldBlock(view, request)) {
+                    return BraveCompat.emptyResponse()
                 }
-
-                // Keep lightweight emergency rules as a fallback if a list is unavailable.
                 return if (AdBlock.isBlocked(request.url.toString())) {
                     AdBlock.empty()
                 } else {
@@ -122,14 +117,14 @@ object WebFactory {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                BraveAdBlock.rememberPage(view, url)
-                BraveAdBlock.injectCosmetics(view, url)
+                BraveCompat.rememberPage(view, url)
+                BraveCompat.injectCosmetics(view, url)
                 view.evaluateJavascript(AdBlock.JS, null)
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
                 super.onPageFinished(view, url)
-                BraveAdBlock.injectCosmetics(view, url)
+                BraveCompat.injectCosmetics(view, url)
                 view.evaluateJavascript(AdBlock.JS, null)
                 if (keepMediaInBackground) view.evaluateJavascript(BACKGROUND_MEDIA_JS, null)
                 onLoaded()
