@@ -128,20 +128,15 @@ class YoutubeSection(private val activity: Activity) : Section {
         (value * activity.resources.displayMetrics.density).toInt()
 
     override fun onBack(): Boolean {
+        // Back should first navigate YouTube's own WebView history.
+        // Do not move the whole app to background just because a video is playing.
         if (chrome.hideIfShown()) return true
-        web.evaluateJavascript(
-            "(function(){var v=document.querySelector('video');return !!(v && !v.paused && v.readyState>2);})()"
-        ) { result ->
-            val playing = result == "true"
-            if (playing) {
-                activity.moveTaskToBack(true)
-            } else if (web.canGoBack()) {
-                web.goBack()
-            } else {
-                activity.finish()
-            }
+        if (web.canGoBack()) {
+            web.goBack()
+            return true
         }
-        return true
+        // At YouTube home, let MainActivity handle the normal app back action.
+        return false
     }
 
     override fun onShow() = web.onResume()
