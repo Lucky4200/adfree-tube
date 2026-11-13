@@ -857,8 +857,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         var connection: HttpURLConnection? = null
         return try {
             connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 12000
-            connection.readTimeout = 20000
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
             connection.setRequestProperty("Accept", "*/*")
