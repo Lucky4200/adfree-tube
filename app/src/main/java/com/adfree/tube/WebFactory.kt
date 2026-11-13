@@ -29,6 +29,8 @@ class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
         }
         customView = view
         callback = cb
+        // HTML5 video fullscreen should rotate to landscape on phones and TVs.
+        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         val decor = activity.window.decorView as FrameLayout
         decor.addView(
             view,
@@ -45,6 +47,8 @@ class FullscreenChrome(private val activity: Activity) : WebChromeClient() {
         customView = null
         callback?.onCustomViewHidden()
         callback = null
+        // Return control to the device's normal orientation policy after video fullscreen.
+        activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     fun hideIfShown(): Boolean {
