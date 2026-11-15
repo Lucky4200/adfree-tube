@@ -104,6 +104,8 @@ class YoutubeSection(private val activity: Activity) : Section {
         col.addView(web, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
+        downloadPanel.attach(web)
+        col.addView(downloadPanel.view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         view = col
         web.loadUrl(Config.YOUTUBE_URL)
     }
@@ -140,7 +142,7 @@ class YoutubeSection(private val activity: Activity) : Section {
         return false
     }
 
-    override fun onShow() = web.onResume()
-    override fun onHide() = web.onPause()
+    override fun onShow() { web.onResume(); downloadPanel.resume() }
+    override fun onHide() { downloadPanel.pause(); web.onPause() }
     override fun onDestroy() = web.destroy()
 }
