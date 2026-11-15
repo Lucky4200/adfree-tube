@@ -89,6 +89,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private var contentCategory = "ALL"
     private var current: Channel? = null
     private var urlIdx = 0
+    private var bufferingTimeout: Runnable? = null
 
     private val adapter = object : ArrayAdapter<String>(
         activity, android.R.layout.simple_list_item_1, ArrayList<String>()
@@ -187,11 +188,36 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
+                uiHandler.removeCallbacks(bufferingTimeout ?: return)
                 if (urlIdx + 1 < (current?.urls?.size ?: 0)) {
                     urlIdx++
                     startUrl()
                 } else {
                     Toast.makeText(activity, "Available sources failed for ${current?.name ?: "channel"}", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                uiHandler.removeCallbacks(bufferingTimeout ?: Runnable {})
+                bufferingTimeout = null
+                if (playbackState == Player.STATE_BUFFERING) {
+                    val playingChannel = current
+                    val playingIndex = urlIdx
+                    val timeout = Runnable {
+                        if (current == playingChannel && urlIdx == playingIndex &&
+                            player.playbackState == Player.STATE_BUFFERING) {
+                            if (urlIdx + 1 < (current?.urls?.size ?: 0)) {
+                                urlIdx++
+                                startUrl()
+                            } else {
+                                Toast.makeText(activity,
+                                    "Stream is not responding for ${current?.name ?: "channel"}",
+                                    Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    bufferingTimeout = timeout
+                    uiHandler.postDelayed(timeout, 15000)
                 }
             }
         })
@@ -1038,6 +1064,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     }
 
     private fun startUrl() {
+        bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
+        bufferingTimeout = null
         val ch = current ?: return
         if (urlIdx >= ch.urls.size) {
             Toast.makeText(activity, "Yeh channel abhi band hai: ${ch.name}", Toast.LENGTH_LONG).show()
