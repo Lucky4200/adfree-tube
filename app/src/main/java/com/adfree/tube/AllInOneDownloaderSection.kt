@@ -1,6 +1,7 @@
 package com.adfree.tube
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.Context
 import android.content.ClipboardManager
@@ -156,12 +157,18 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
                     } finally { get?.disconnect() }
                 }
                 val ext = Uri.parse(finalUrl).path.orEmpty().substringAfterLast(".", "").lowercase()
+                val adaptive = type.contains("mpegurl") || type.contains("dash+xml") || ext in setOf("m3u8", "mpd")
                 val direct = type.startsWith("video/") || type.startsWith("audio/") || ext in setOf("mp4","m4v","webm","mov","mp3","m4a","aac","wav","ogg")
-                if (direct) { mediaUrl = finalUrl; mime = type }
+                val supportedMedia = direct || adaptive
+                if (supportedMedia) { mediaUrl = finalUrl; mime = type }
                 activity.runOnUiThread {
                     scanProgress.visibility = View.GONE
                     scanStatus.text = "Scan complete"
-                    info.text = if (direct) "Direct media detect ho gayi ✓\nType: $type\nDownload ke liye ready." else "Link mil gaya, lekin website ne direct video/audio file expose nahi ki. Page-link se media extract nahi hua."
+                    info.text = when {
+                        adaptive -> "Adaptive stream detect ho gayi ✓\nType: $type\nMedia3 isay MP4 ya audio-only M4A mein export kar sakta hai (agar stream protected na ho)."
+                        direct -> "Direct media detect ho gayi ✓\nType: $type\nDownload ke liye ready."
+                        else -> "Link mil gaya, lekin website ne direct video/audio file expose nahi ki. Page-link se media extract nahi hua."
+                    }
                 }
             } catch (e: Exception) {
                 activity.runOnUiThread {
@@ -173,15 +180,60 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         }
     }
     private fun startDownload() {
-        if(mediaUrl.isBlank()) {
-            Toast.makeText(activity,"Pehle direct media link detect karein.",Toast.LENGTH_LONG).show(); return
+        val url = mediaUrl
+        if (url.isBlank()) {
+            Toast.makeText(activity, "Pehle supported media link detect karein.", Toast.LENGTH_LONG).show()
+            return
         }
-        try {
-            DownloadStore.enqueue(activity,mediaUrl,"Media download",mime)
-            info.text="Download shuru ho gaya. Complete hone par Downloads tab mein nazar aayega."
-            mediaUrl=""
-            refresh()
-        } catch(e:Exception) { info.text=e.message ?: "Download start nahi hua." }
+        val ext = Uri.parse(url).path.orEmpty().substringAfterLast(".", "").lowercase()
+        val adaptive = mime.contains("mpegurl") || mime.contains("dash+xml") || ext in setOf("m3u8", "mpd")
+        val video = mime.startsWith("video/") || ext in setOf("mp4", "m4v", "webm", "mov")
+        val audio = mime.startsWith("audio/") || ext in setOf("mp3", "m4a", "aac", "wav", "ogg")
+
+        if (adaptive || video) {
+            val options = if (adaptive) {
+                arrayOf("Video • MP4 (best available quality)", "Audio only • M4A")
+            } else {
+                arrayOf("Video • original file", "Audio only • M4A")
+            }
+            AlertDialog.Builder(activity)
+                .setTitle("Download format")
+                .setItems(options) { _, which ->
+                    if (adaptive || which == 1) {
+                        Media3Export.start(activity, url, audioOnly = which == 1) { status ->
+                            scanStatus.text = status
+                            if (status.startsWith("Complete")) info.text = status
+                        }
+                        mediaUrl = ""
+                    } else {
+                        try {
+                            DownloadStore.enqueue(activity, url, "Media download", mime)
+                            info.text = "Download shuru ho gaya. Downloads tab mein status check karein."
+                            mediaUrl = ""
+                            refresh()
+                        } catch (e: Exception) {
+                            info.text = e.message ?: "Download start nahi hua."
+                        }
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+
+        if (audio) {
+            try {
+                DownloadStore.enqueue(activity, url, "Audio download", mime)
+                info.text = "Audio download shuru ho gaya. Downloads tab mein status check karein."
+                mediaUrl = ""
+                refresh()
+            } catch (e: Exception) {
+                info.text = e.message ?: "Download start nahi hua."
+            }
+            return
+        }
+
+        info.text = "Is link ka downloadable media format identify nahi hua."
     }
     private fun refresh() {
         active.removeAllViews()
