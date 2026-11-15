@@ -24,14 +24,14 @@ object DownloadStore {
     const val PREFS = "adfree_tube_downloads"
     const val KEY_IDS = "ids"
 
-    fun enqueue(context: Context, url: String, title: String): Long {
+    fun enqueue(context: Context, url: String, title: String, mimeType: String? = null): Long {
         val uri = Uri.parse(url)
         val ext = uri.path.orEmpty().substringAfterLast('.', "").lowercase()
         val allowed = setOf("mp4", "m4v", "webm", "mov", "mp3", "m4a", "aac", "wav", "ogg")
-        require(uri.scheme in listOf("http", "https") && ext in allowed) {
-            "This source is not a direct downloadable media file."
+        require(uri.scheme in listOf("http", "https") && (ext in allowed || mimeType?.startsWith("video/") == true || mimeType?.startsWith("audio/") == true)) {
+            "Direct downloadable video/audio file detect nahi hua."
         }
-        val name = URLUtil.guessFileName(url, null, null)
+        val name = URLUtil.guessFileName(url, null, mimeType)
             .replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "media.$ext" }
         val request = DownloadManager.Request(uri)
             .setTitle(title.ifBlank { name })
