@@ -27,13 +27,12 @@ object Config {
         Pair("BD", "https://iptv-org.github.io/iptv/countries/bd.m3u"),
         Pair("SA", "https://iptv-org.github.io/iptv/countries/sa.m3u"),
 
-        // Raw country indexes add alternate URLs and entries missing from the
-        // published country view. TvSection only accepts entries tagged to these
-        // four countries and keeps per-source HTTP headers for playback.
-        Pair("PK", "https://iptv-org.github.io/iptv/raw/pk.m3u"),
-        Pair("IN", "https://iptv-org.github.io/iptv/raw/in.m3u"),
-        Pair("BD", "https://iptv-org.github.io/iptv/raw/bd.m3u"),
-        Pair("SA", "https://iptv-org.github.io/iptv/raw/sa.m3u"),
+        // Full source indexes (not the non-existent /raw/ path). These carry
+        // alternate URLs and per-stream User-Agent / Referer metadata.
+        Pair("PK", "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/pk.m3u"),
+        Pair("IN", "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/in.m3u"),
+        Pair("BD", "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/bd.m3u"),
+        Pair("SA", "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/sa.m3u"),
 
         // Additional curated feeds provide duplicate channel entries where available,
         // allowing the TV player to keep alternate URLs for automatic failover.
@@ -49,7 +48,9 @@ object Config {
     val OFFICIAL_SERVICES = listOf(
         Pair("Pakistan • Ministry / PTV News Live", "https://moib.gov.pk/LiveStream"),
         Pair("Pakistan • ARY News Live", "https://live.arynews.tv/pk/"),
+        Pair("Pakistan • AVT Khyber official live player", "https://avtkhyber.tv/khyber-tv-live-streaming/"),
         Pair("Pakistan • PTV Sports Live", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Pair("India • WAVES free live TV (Prasar Bharati)", "https://prasarbharati.gov.in/en/waves/"),
         Pair("India • Prasar Bharati / DD Channels", "https://prasarbharati.gov.in/en/dd-channels/"),
         Pair("India • Animal Planet HD English (official JioTV; subscription/sign-in may be required)", "https://www.jiotv.com/live-channel/animal-planet-hd-world/286/just-animals/251004286016"),
         Pair("Saudi Arabia • Aloula / Saudi Broadcasting Authority", "https://aloula.sba.sa/"),
