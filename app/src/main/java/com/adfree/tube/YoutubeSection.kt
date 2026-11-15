@@ -20,6 +20,7 @@ import android.widget.Toast
 class YoutubeSection(private val activity: Activity) : Section {
 
     private val chrome = FullscreenChrome(activity)
+    private val downloadPanel = WebDownloadPanel(activity)
     private lateinit var web: WebView
     override val view: View
 
