@@ -27,8 +27,8 @@ class DownloadSection(private val activity: Activity) : Section {
             setPadding(dp(16), dp(14), dp(16), dp(12))
             setBackgroundColor(Color.rgb(6, 13, 25))
         }
-        root.addView(label("COMPLETED DOWNLOADS", 20, true))
-        root.addView(label("Sirf mukammal 100% downloads yahan show honge.", 12).apply {
+        root.addView(label("DOWNLOAD LIST", 20, true))
+        root.addView(label("Active, paused, failed aur completed downloads yahan nazar aayenge.", 12).apply {
             setTextColor(Color.rgb(145, 164, 188))
         }, params(5, 14))
         list.orientation = LinearLayout.VERTICAL
@@ -42,16 +42,30 @@ class DownloadSection(private val activity: Activity) : Section {
             val cur = runCatching { manager.query(DownloadManager.Query().setFilterById(id)) }.getOrNull() ?: return@forEach
             cur.use {
                 if (!it.moveToFirst()) return@use
-                if (it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) != DownloadManager.STATUS_SUCCESSFUL) return@use
+                val state = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                 count++
                 val title = it.getString(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE)) ?: "Downloaded file"
+                val downloaded = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                val total = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                val percent = if (total > 0L) (downloaded * 100L / total).toInt().coerceIn(0,100) else 0
+                val stateText = when (state) {
+                    DownloadManager.STATUS_SUCCESSFUL -> "Completed • 100%"
+                    DownloadManager.STATUS_FAILED -> "Failed • Retry from source"
+                    DownloadManager.STATUS_PAUSED -> "Paused • $percent%"
+                    DownloadManager.STATUS_PENDING -> "Waiting • $percent%"
+                    DownloadManager.STATUS_RUNNING -> "Downloading • $percent%"
+                    else -> "Status unknown"
+                }
                 val row = LinearLayout(activity).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(12), dp(10), dp(12), dp(10))
                     background = rounded()
                 }
-                row.addView(label("✓  " + title, 13, true))
-                row.addView(label("Completed • 100%", 11).apply { setTextColor(Color.rgb(124,245,197)) }, params(4,0))
+                row.addView(label((if (state == DownloadManager.STATUS_SUCCESSFUL) "✓  " else "⬇  ") + title, 13, true))
+                row.addView(label(stateText, 11).apply { setTextColor(if (state == DownloadManager.STATUS_SUCCESSFUL) Color.rgb(124,245,197) else Color.rgb(180,205,230)) }, params(4,0))
+                if (state == DownloadManager.STATUS_RUNNING || state == DownloadManager.STATUS_PAUSED || state == DownloadManager.STATUS_PENDING) {
+                    row.addView(ProgressBar(activity,null,android.R.attr.progressBarStyleHorizontal).apply { max=100; progress=percent }, params(7,0))
+                }
                 list.addView(row, params(0,8))
             }
         }
