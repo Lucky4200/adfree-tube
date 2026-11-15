@@ -4,6 +4,10 @@ plugins {
 }
 
 android {
+    packagingOptions {
+        jniLibs.useLegacyPackaging = true
+    }
+
     namespace = "com.adfree.tube"
     compileSdk = 37
 

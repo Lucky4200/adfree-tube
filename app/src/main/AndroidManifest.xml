@@ -12,7 +12,6 @@
     <application
         android:name=".AdFreeTubeApp"
         android:allowBackup="false"
-        android:extractNativeLibs="true"
         android:icon="@drawable/ic_launcher"
         android:banner="@drawable/ic_banner"
         android:label="AdFree Tube"
