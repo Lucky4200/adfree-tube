@@ -26,7 +26,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 
-@UnstableApi
 class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     private val input = EditText(activity)
@@ -181,6 +180,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
             }
         }
     }
+    @OptIn(UnstableApi::class)
     private fun startDownload() {
         val url = mediaUrl
         if (url.isBlank()) {
