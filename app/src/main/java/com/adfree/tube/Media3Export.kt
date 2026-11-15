@@ -60,7 +60,16 @@ object Media3Export {
                 val files = prefs.getStringSet(KEY_FILES, emptySet())?.toMutableSet() ?: mutableSetOf()
                 files.add(output.name)
                 prefs.edit().putStringSet(KEY_FILES, files).apply()
-                onStatus("Complete ✓  ${output.name}")
+                try {
+                    val published = MediaPublisher.publish(appContext, output)
+                    val mediaPrefs = appContext.getSharedPreferences("adfree_tube_ytdlp_exports", Context.MODE_PRIVATE)
+                    val entries = mediaPrefs.getStringSet("published_media", emptySet())?.toMutableSet() ?: mutableSetOf()
+                    entries.add(published.name + "|" + published.uri)
+                    mediaPrefs.edit().putStringSet("published_media", entries).apply()
+                    onStatus("Complete ✓  Gallery: ${published.name}")
+                } catch (e: Exception) {
+                    onStatus("Complete, but Gallery copy failed: ${e.message ?: "unknown error"}")
+                }
             }
 
             override fun onTransformationError(inputMediaItem: MediaItem, exception: TransformationException) {
