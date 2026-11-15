@@ -18,8 +18,8 @@ class MainActivity : Activity() {
     private lateinit var content: FrameLayout
     private val tabs = mutableListOf<Button>()
     private lateinit var tabsBar: LinearLayout
-    private val sections = arrayOfNulls<Section>(4)
-    private val names = listOf("YouTube", "Live TV", "Movies", "Downloader")
+    private val sections = arrayOfNulls<Section>(5)
+    private val names = listOf("YouTube", "Live TV", "Movies", "Downloads", "All-in-One")
     private var currentIndex = -1
     private var isTv = false
 
@@ -47,9 +47,10 @@ class MainActivity : Activity() {
                     0 -> "▶ YouTube"
                     1 -> "▣ TV"
                     2 -> "▰ Movies"
-                    else -> "⬇ Download"
+                    3 -> "✓ Downloads"
+                    else -> "⬇ All-in-One"
                 }
-                textSize = if (isTv) 15f else 10f
+                textSize = if (isTv) 14f else 9f
                 isAllCaps = false
                 setTextColor(Color.WHITE)
                 typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
@@ -81,7 +82,8 @@ class MainActivity : Activity() {
                     tabsBar.visibility = if (fullscreen) View.GONE else View.VISIBLE
                 }
                 2 -> MoviesSection(this)
-                else -> DownloadSection(this)
+                3 -> DownloadSection(this)
+                else -> AllInOneDownloaderSection(this)
             }
             sections[i] = s
         }
