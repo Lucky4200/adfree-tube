@@ -17,38 +17,22 @@ object Config {
 
     // TV channels: (mulk, playlist link). Ek na chale to doosra khud try hota hai.
     // Naye backup links yahan add kar sakte hain.
+    // Public broadcaster streams only: four requested countries plus curated regional
+    // and sports playlists. TvSection filters every parsed channel to PK/IN/BD/SA.
+    // These playlists contain publicly submitted streams that iptv-org says were
+    // intentionally made public by their copyright holders.
     val PLAYLISTS = listOf(
-        // Best public country feeds
         Pair("PK", "https://iptv-org.github.io/iptv/countries/pk.m3u"),
         Pair("IN", "https://iptv-org.github.io/iptv/countries/in.m3u"),
         Pair("BD", "https://iptv-org.github.io/iptv/countries/bd.m3u"),
         Pair("SA", "https://iptv-org.github.io/iptv/countries/sa.m3u"),
-        Pair("AF", "https://iptv-org.github.io/iptv/countries/af.m3u"),
-        // Raw country feeds add alternate public stream URLs for automatic retry
-        Pair("PK", "https://iptv-org.github.io/iptv/raw/pk.m3u"),
-        // Dedicated sports catalogue plus wider regional discovery feeds
-        Pair("WORLD", "https://iptv-org.github.io/iptv/categories/sports.m3u"),
-        // Full global catalogue plus category feeds (free/public streams)
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/all.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/documentary.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/kids.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/entertainment.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/movies.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/news.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/music.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/series.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/categories/sports.m3u"),
-        // HD-first public streams; quality playlists are maintained separately
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/quality/1080p.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/quality/720p.m3u"),
-        Pair("WORLD", "https://shahrukhalid.github.io/nexonic-iptv/playlists/verified.m3u"),
-        Pair("WORLD", "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"),
-        Pair("WORLD", "https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u"),
-        Pair("WORLD", "https://raw.githubusercontent.com/freecasthub/public-iptv/main/sports.m3u"),
-        Pair("WORLD", "https://iptv-org.github.io/iptv/regions/gcc.m3u"),
-        Pair("WORLD", "https://iptv-org.github.io/iptv/regions/arab.m3u"),
-        Pair("WORLD", "https://iptv-org.github.io/iptv/regions/sas.m3u"),
-        Pair("WORLD", "https://iptv-org.github.io/iptv/index.m3u")
+
+        // Additional curated feeds provide duplicate channel entries where available,
+        // allowing the TV player to keep alternate URLs for automatic failover.
+        Pair("SAS", "https://iptv-org.github.io/iptv/regions/sas.m3u"),
+        Pair("GCC", "https://iptv-org.github.io/iptv/regions/gcc.m3u"),
+        Pair("ARAB", "https://iptv-org.github.io/iptv/regions/arab.m3u"),
+        Pair("SPORTS", "https://iptv-org.github.io/iptv/categories/sports.m3u")
     )
 
     // Official service links only; paid channels still require a valid subscription.
