@@ -64,6 +64,7 @@ class WebDownloadPanel(private val activity: Activity) {
     private val scanTask = object : Runnable { override fun run() { scan() } }
 
     val view: View = LinearLayout(activity).apply {
+        visibility = View.GONE
         orientation = LinearLayout.HORIZONTAL
         gravity = android.view.Gravity.CENTER_VERTICAL
         setPadding(dp(12), dp(7), dp(12), dp(7))
@@ -97,12 +98,21 @@ class WebDownloadPanel(private val activity: Activity) {
     private val bridge = object {
         @JavascriptInterface
         fun onMedia(url: String?, title: String?, w: Int, h: Int, mime: String?) {
-            val candidate = url?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: return
+            val candidate = url?.takeIf { it.isNotBlank() } ?: return
             activity.runOnUiThread {
                 mediaUrl = candidate
                 mediaTitle = title?.take(120)?.ifBlank { "Video" } ?: "Video"
                 width = w
                 height = h
+                view.visibility = View.VISIBLE
+            }
+        }
+
+        @JavascriptInterface
+        fun onNoMedia() {
+            activity.runOnUiThread {
+                mediaUrl = ""
+                view.visibility = View.GONE
             }
         }
     }
@@ -123,9 +133,9 @@ class WebDownloadPanel(private val activity: Activity) {
             """(function(){
               try {
                 var v=document.querySelector('video');
-                if(!v) return;
+                if(!v || v.paused || v.ended) { AdFreeTubeMedia.onNoMedia(); return; }
                 var u=v.currentSrc||v.src||'';
-                if(!u) return;
+                if(!u) { AdFreeTubeMedia.onNoMedia(); return; }
                 AdFreeTubeMedia.onMedia(u,document.title||'Video',v.videoWidth||0,v.videoHeight||0,v.currentSrc||'');
               } catch(e) {}
             })();""", null
