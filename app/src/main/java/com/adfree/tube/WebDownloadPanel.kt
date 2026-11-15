@@ -420,9 +420,7 @@ class WebDownloadPanel(private val activity: Activity) {
         }
         AlertDialog.Builder(activity)
             .setTitle("This player is not downloadable")
-            .setMessage("The page did not expose an extractable video file. It may use DRM, a protected stream, or a player that this app does not support. Protected streams cannot be bypassed.
-
-" + error.take(260))
+            .setMessage("The page did not expose an extractable video file. It may use DRM, a protected stream, or a player that this app does not support. Protected streams cannot be bypassed.\\n\\n" + error.take(260))
             .setPositiveButton("OK", null)
             .show()
     }
