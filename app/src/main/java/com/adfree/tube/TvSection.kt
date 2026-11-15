@@ -28,6 +28,12 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -60,6 +66,7 @@ class Channel(
     // Some public M3U streams require an origin/referrer or a specific user-agent.
     // Store those headers with each source, not globally with the channel.
     val headersByUrl: MutableMap<String, Map<String, String>> = LinkedHashMap()
+    val webPlayerUrls: MutableSet<String> = LinkedHashSet()
 }
 private data class ParsedChannel(
     val name: String,
@@ -94,6 +101,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         .setMediaSourceFactory(DefaultMediaSourceFactory(mediaDataSourceFactory))
         .build()
     private val sourcePrefs = activity.getSharedPreferences("adfree_tv_source_health", Activity.MODE_PRIVATE)
+    private var embeddedWebView: WebView? = null
+    private var audioCheckTask: Runnable? = null
     private val playerView: PlayerView by lazy { LayoutInflater.from(activity).inflate(R.layout.tv_player_view, null) as PlayerView }
     private val status = TextView(activity)
     private val listView = ListView(activity)
@@ -239,12 +248,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             override fun onPlayerError(error: PlaybackException) {
                 bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
                 bufferingTimeout = null
-                if (urlIdx + 1 < (current?.urls?.size ?: 0)) {
-                    urlIdx++
-                    startUrl()
-                } else {
-                    Toast.makeText(activity, "Available sources failed for ${current?.name ?: "channel"}", Toast.LENGTH_LONG).show()
-                }
+                if (embeddedWebView?.visibility == View.VISIBLE) return
+                advanceToNextSource(error.errorCodeName + ": " + (error.message ?: "playback error"))
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -252,12 +257,43 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 bufferingTimeout = null
                 if (playbackState == Player.STATE_READY) {
                     val playingChannel = current
-                    val goodUrl = playingChannel?.urls?.getOrNull(urlIdx)
-                    if (playingChannel != null && !goodUrl.isNullOrBlank()) {
-                        sourcePrefs.edit()
-                            .putString(sourcePreferenceKey(playingChannel), goodUrl)
-                            .apply()
+                    val playingIndex = urlIdx
+                    audioCheckTask?.let { uiHandler.removeCallbacks(it) }
+                    val verifyAudio = Runnable {
+                        if (current == playingChannel && urlIdx == playingIndex &&
+                            player.playbackState == Player.STATE_READY &&
+                            embeddedWebView?.visibility != View.VISIBLE) {
+                            val hasAudio = player.currentTracks.groups.any { group ->
+                                group.type == C.TRACK_TYPE_AUDIO &&
+                                    (0 until group.length).any { group.isTrackSelected(it) }
+                            }
+                            if (hasAudio && playingChannel != null) {
+                                val goodUrl = playingChannel.urls.getOrNull(playingIndex)
+                                if (!goodUrl.isNullOrBlank()) {
+                                    sourcePrefs.edit()
+                                        .putString(sourcePreferenceKey(playingChannel), goodUrl)
+                                        .apply()
+                                }
+                            } else if (playingChannel != null &&
+                                playingIndex + 1 < playingChannel.urls.size) {
+                                urlIdx = playingIndex + 1
+                                Toast.makeText(
+                                    activity,
+                                    "No audio track on this server. Trying the next free source…",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                startUrl()
+                            } else {
+                                Toast.makeText(
+                                    activity,
+                                    "This source has no selectable audio track. No backup audio source was found.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
                     }
+                    audioCheckTask = verifyAudio
+                    uiHandler.postDelayed(verifyAudio, 3000)
                 }
                 if (playbackState == Player.STATE_BUFFERING) {
                     val playingChannel = current
@@ -265,14 +301,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                     val timeout = Runnable {
                         if (current == playingChannel && urlIdx == playingIndex &&
                             player.playbackState == Player.STATE_BUFFERING) {
-                            if (urlIdx + 1 < (current?.urls?.size ?: 0)) {
-                                urlIdx++
-                                startUrl()
-                            } else {
-                                Toast.makeText(activity,
-                                    "Stream is not responding for ${current?.name ?: "channel"}",
-                                    Toast.LENGTH_LONG).show()
-                            }
+                            advanceToNextSource("stream stayed buffering for 11 seconds")
                         }
                     }
                     bufferingTimeout = timeout
@@ -1115,8 +1144,36 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 pool.shutdownNow()
             }
 
+            // AVT's own Watch Live page embeds the Mjunoon player. Keep this
+            // broadcaster-authorized web-player URL as a last-resort fallback so
+            // the channel is still playable when the old public M3U endpoint dies.
+            val avtChannel = map.values.firstOrNull {
+                it.country == "PK" &&
+                    (it.name.contains("AVT Khyber", ignoreCase = true) ||
+                        it.tvgId.orEmpty().contains("AVTKhyber", ignoreCase = true))
+            } ?: Channel(
+                "AVT Khyber",
+                "PK",
+                ArrayList(),
+                category = "entertainment",
+                tvgId = "AVTKhyber.pk@official"
+            ).also {
+                map["PK|avtkhyber.pk@official"] = it
+            }
+            val avtEmbedUrl = "https://www.mjunoon.tv/embedplayer/avt-khyber-tv-live.html"
+            if (!avtChannel.urls.contains(avtEmbedUrl)) avtChannel.urls.add(avtEmbedUrl)
+            avtChannel.webPlayerUrls.add(avtEmbedUrl)
+
             map.values.forEach { channel ->
-                channel.urls.sortBy { if (it.startsWith("https")) 0 else 1 }
+                channel.urls.sortWith(
+                    compareBy<String> { url ->
+                        when {
+                            url in channel.webPlayerUrls -> 2
+                            url.startsWith("https://", true) -> 0
+                            else -> 1
+                        }
+                    }
+                )
             }
             val priority = listOf("PK", "IN", "BD", "SA")
             val result = map.values.sortedWith(
@@ -1328,7 +1385,29 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         return "last_good_" + stableId.lowercase(Locale.ROOT).hashCode()
     }
 
+    private fun advanceToNextSource(reason: String) {
+        val ch = current ?: return
+        val failedIndex = urlIdx
+        if (failedIndex + 1 < ch.urls.size) {
+            urlIdx = failedIndex + 1
+            Toast.makeText(
+                activity,
+                "Source ${failedIndex + 1}/${ch.urls.size} failed; trying backup ${urlIdx + 1}.",
+                Toast.LENGTH_SHORT
+            ).show()
+            startUrl()
+        } else {
+            Toast.makeText(
+                activity,
+                "All ${ch.urls.size} public sources failed for ${ch.name}. Last issue: $reason",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     private fun play(ch: Channel) {
+        audioCheckTask?.let { uiHandler.removeCallbacks(it) }
+        audioCheckTask = null
         current = ch
         applyFilter()
         val lastGood = sourcePrefs.getString(sourcePreferenceKey(ch), null)
@@ -1340,18 +1419,101 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         startUrl()
     }
 
+    private fun showEmbeddedWebPlayer(url: String) {
+        player.stop()
+        playerView.visibility = View.GONE
+        val web = embeddedWebView ?: WebView(activity).apply {
+            setBackgroundColor(Color.BLACK)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            settings.userAgentString =
+                "Mozilla/5.0 (Linux; Android 10; TV) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            webChromeClient = WebChromeClient()
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, pageUrl: String?) {
+                    super.onPageFinished(view, pageUrl)
+                    if (current?.webPlayerUrls?.contains(url) == true) {
+                        status.text = "AVT Khyber official embedded player • use its Play control if prompted"
+                    }
+                }
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: android.webkit.WebResourceError?
+                ) {
+                    super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame == true) {
+                        Toast.makeText(
+                            activity,
+                            "Official web player could not load: ${error?.description ?: "network error"}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }.also { embeddedWebView = it }
+
+        if (web.parent == null) {
+            playerContainer.addView(
+                web,
+                0,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+        web.visibility = View.VISIBLE
+        web.onResume()
+        web.loadUrl(url)
+    }
+
+    private fun hideEmbeddedWebPlayer() {
+        embeddedWebView?.apply {
+            stopLoading()
+            visibility = View.GONE
+            onPause()
+        }
+        playerView.visibility = View.VISIBLE
+    }
+
     private fun startUrl() {
         bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
         bufferingTimeout = null
+        audioCheckTask?.let { uiHandler.removeCallbacks(it) }
+        audioCheckTask = null
         val ch = current ?: return
         if (urlIdx >= ch.urls.size) {
             Toast.makeText(activity, "Yeh channel abhi band hai: ${ch.name}", Toast.LENGTH_LONG).show()
             return
         }
         val url = ch.urls[urlIdx]
-        // Apply playlist-provided VLC options (User-Agent / Referer / Origin) to
-        // every HLS segment request as well as the master playlist request.
-        httpDataSourceFactory.setDefaultRequestProperties(ch.headersByUrl[url].orEmpty())
+        if (url in ch.webPlayerUrls) {
+            showEmbeddedWebPlayer(url)
+            return
+        }
+        hideEmbeddedWebPlayer()
+
+        // Use a separate HTTP factory for every source. A shared mutable factory can
+        // accidentally send the previous channel's Referer/User-Agent to a new stream.
+        val sourceHeaders = ch.headersByUrl[url].orEmpty()
+        val sourceHttpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(
+                sourceHeaders["User-Agent"]
+                    ?: "Mozilla/5.0 (Linux; Android 7.1; TV) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+            )
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(20000)
+            .setAllowCrossProtocolRedirects(true)
+            .setDefaultRequestProperties(sourceHeaders.filterKeys { !it.equals("User-Agent", ignoreCase = true) })
+        val sourceMediaFactory = DefaultMediaSourceFactory(
+            DefaultDataSource.Factory(activity, sourceHttpFactory)
+        )
+
         val b = MediaItem.Builder().setUri(url)
         val path = url.substringBefore("?").lowercase(Locale.ROOT)
         when {
@@ -1360,7 +1522,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             path.endsWith(".ts") -> b.setMimeType(MimeTypes.VIDEO_MP2T)
         }
         // Unknown extension: let Media3 sniff the response instead of forcing HLS.
-        player.setMediaItem(b.build())
+        player.setMediaSource(sourceMediaFactory.createMediaSource(b.build()))
         player.prepare()
         player.playWhenReady = true
     }
@@ -1374,6 +1536,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     }
 
     override fun onShow() {
+        embeddedWebView?.onResume()
         activity.requestedOrientation = if (isFullscreen) {
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         } else if (isTv) {
@@ -1389,6 +1552,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
     override fun onHide() {
         player.pause()
+        embeddedWebView?.onPause()
         uiHandler.removeCallbacks(hideChannelButton)
         channelsButton.visibility = View.GONE
         channelPrevButton.visibility = View.GONE
@@ -1412,6 +1576,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     override fun onDestroy() {
         uiHandler.removeCallbacksAndMessages(null)
         if (::channelOverlay.isInitialized) channelOverlay.visibility = View.GONE
+        audioCheckTask?.let { uiHandler.removeCallbacks(it) }
+        embeddedWebView?.apply {
+            stopLoading()
+            webChromeClient = null
+            webViewClient = WebViewClient()
+            destroy()
+        }
+        embeddedWebView = null
         logoExecutor.shutdownNow()
         logoCache.values.forEach { it.recycle() }
         logoCache.clear()
