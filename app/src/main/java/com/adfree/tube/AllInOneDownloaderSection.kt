@@ -111,6 +111,8 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
             return
         }
         mediaUrl = ""; mime = ""; info.text = "Link detect ho raha hai..."
+        scanProgress.visibility = View.VISIBLE
+        scanStatus.text = "Scanning link..."
         thread {
             try {
                 val host = u.host.orEmpty().lowercase().removePrefix("www.")
@@ -156,9 +158,17 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
                 val ext = Uri.parse(finalUrl).path.orEmpty().substringAfterLast(".", "").lowercase()
                 val direct = type.startsWith("video/") || type.startsWith("audio/") || ext in setOf("mp4","m4v","webm","mov","mp3","m4a","aac","wav","ogg")
                 if (direct) { mediaUrl = finalUrl; mime = type }
-                activity.runOnUiThread { info.text = if (direct) "Direct media detect ho gayi ✓\nType: $type\nDownload ke liye ready." else "Link mil gaya, lekin website ne direct video/audio file expose nahi ki. Page-link se media extract nahi hua." }
+                activity.runOnUiThread {
+                    scanProgress.visibility = View.GONE
+                    scanStatus.text = "Scan complete"
+                    info.text = if (direct) "Direct media detect ho gayi ✓\nType: $type\nDownload ke liye ready." else "Link mil gaya, lekin website ne direct video/audio file expose nahi ki. Page-link se media extract nahi hua."
+                }
             } catch (e: Exception) {
-                activity.runOnUiThread { info.text = "Link detect nahi ho saka: ${e.message ?: "Network error"}" }
+                activity.runOnUiThread {
+                    scanProgress.visibility = View.GONE
+                    scanStatus.text = "Scan failed"
+                    info.text = "Link detect nahi ho saka: " + (e.message ?: "Network error")
+                }
             }
         }
     }
