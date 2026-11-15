@@ -188,7 +188,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         }
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                uiHandler.removeCallbacks(bufferingTimeout ?: return)
+                bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
+                bufferingTimeout = null
                 if (urlIdx + 1 < (current?.urls?.size ?: 0)) {
                     urlIdx++
                     startUrl()
@@ -198,7 +199,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                uiHandler.removeCallbacks(bufferingTimeout ?: Runnable {})
+                bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
                 bufferingTimeout = null
                 if (playbackState == Player.STATE_BUFFERING) {
                     val playingChannel = current
