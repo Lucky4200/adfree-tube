@@ -694,8 +694,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
     private fun changeChannel(direction: Int) {
         if (playerLocked) return
-        val channels = shown.ifEmpty { all.filter { it.country in supportedCountries } }
-        if (channels.isEmpty()) return
+        val channels = shown
+        if (channels.isEmpty()) {
+            Toast.makeText(activity, "Is filter mein next channel available nahi hai.", Toast.LENGTH_SHORT).show()
+            return
+        }
         val currentIndex = channels.indexOf(current)
         val nextIndex = if (currentIndex < 0) {
             if (direction >= 0) 0 else channels.lastIndex
@@ -723,6 +726,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             fullscreenButton.visibility = if (isFullscreen) View.GONE else View.VISIBLE
             ratioButton.visibility = View.VISIBLE
             lockButton.text = "🔒  Lock"
+            channelPrevButton.visibility = if (isTv && !isFullscreen && current != null) View.VISIBLE else View.GONE
+            channelNextButton.visibility = if (isTv && !isFullscreen && current != null) View.VISIBLE else View.GONE
             if (isFullscreen) revealChannelControl()
             else playerView.requestFocus()
         }
@@ -1162,6 +1167,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         current = ch
         applyFilter()
         urlIdx = 0
+        if (isTv && !isFullscreen && !playerLocked) {
+            channelPrevButton.visibility = View.VISIBLE
+            channelNextButton.visibility = View.VISIBLE
+        }
         startUrl()
     }
 
@@ -1202,6 +1211,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         } else {
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        if (isTv && !isFullscreen && !playerLocked && current != null) {
+            channelPrevButton.visibility = View.VISIBLE
+            channelNextButton.visibility = View.VISIBLE
         }
     }
 
