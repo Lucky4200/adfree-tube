@@ -28,11 +28,16 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.TrackSelectionDialogBuilder
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -44,8 +49,27 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
-class Channel(val name: String, val country: String, val urls: MutableList<String>, var logoUrl: String? = null, var category: String? = null)
-private data class ParsedChannel(val name: String, val country: String, val url: String, val logoUrl: String?, val category: String?)
+class Channel(
+    val name: String,
+    val country: String,
+    val urls: MutableList<String>,
+    var logoUrl: String? = null,
+    var category: String? = null,
+    val tvgId: String? = null
+) {
+    // Some public M3U streams require an origin/referrer or a specific user-agent.
+    // Store those headers with each source, not globally with the channel.
+    val headersByUrl: MutableMap<String, Map<String, String>> = LinkedHashMap()
+}
+private data class ParsedChannel(
+    val name: String,
+    val country: String,
+    val url: String,
+    val logoUrl: String?,
+    val category: String?,
+    val tvgId: String?,
+    val headers: Map<String, String>
+)
 
 class TvSection(private val activity: Activity, private val isTv: Boolean, private val onFullscreenChanged: (Boolean) -> Unit = {}) : Section {
 
@@ -56,9 +80,19 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         .setReadTimeoutMs(20000)
         .setAllowCrossProtocolRedirects(true)
     private val mediaDataSourceFactory = DefaultDataSource.Factory(activity, httpDataSourceFactory)
+    private val trackSelector = DefaultTrackSelector(activity).apply {
+        setParameters(
+            buildUponParameters()
+                // Prefer a usable local audio track for South Asian streams when present.
+                .setPreferredAudioLanguages("hi", "ur", "bn", "ar", "en")
+                .build()
+        )
+    }
     private val player: ExoPlayer = ExoPlayer.Builder(activity)
+        .setTrackSelector(trackSelector)
         .setMediaSourceFactory(DefaultMediaSourceFactory(mediaDataSourceFactory))
         .build()
+    private val sourcePrefs = activity.getSharedPreferences("adfree_tv_source_health", Activity.MODE_PRIVATE)
     private val playerView: PlayerView by lazy { LayoutInflater.from(activity).inflate(R.layout.tv_player_view, null) as PlayerView }
     private val status = TextView(activity)
     private val listView = ListView(activity)
@@ -70,6 +104,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private lateinit var ratioButton: Button
     private lateinit var channelsButton: Button
     private lateinit var lockButton: Button
+    private lateinit var audioButton: Button
     private lateinit var lockShield: TextView
     private lateinit var channelPrevButton: Button
     private lateinit var channelNextButton: Button
@@ -183,6 +218,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         playerView.keepScreenOn = true
         playerView.setShutterBackgroundColor(Color.BLACK)
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        player.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build(),
+            true
+        )
         // The built-in ExoPlayer next/previous buttons move between media items,
         // but TV channels are separate app entries. Hide those no-op controls;
         // the channel-level buttons below perform the correct action.
@@ -207,6 +249,15 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             override fun onPlaybackStateChanged(playbackState: Int) {
                 bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
                 bufferingTimeout = null
+                if (playbackState == Player.STATE_READY) {
+                    val playingChannel = current
+                    val goodUrl = playingChannel?.urls?.getOrNull(urlIdx)
+                    if (playingChannel != null && !goodUrl.isNullOrBlank()) {
+                        sourcePrefs.edit()
+                            .putString(sourcePreferenceKey(playingChannel), goodUrl)
+                            .apply()
+                    }
+                }
                 if (playbackState == Player.STATE_BUFFERING) {
                     val playingChannel = current
                     val playingIndex = urlIdx
@@ -224,7 +275,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                         }
                     }
                     bufferingTimeout = timeout
-                    uiHandler.postDelayed(timeout, 15000)
+                    uiHandler.postDelayed(timeout, 11000)
                 }
             }
         })
@@ -406,6 +457,27 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             setMargins(margin, margin, margin, margin)
         }
         playerContainer.addView(ratioButton, ratioParams)
+
+        audioButton = Button(activity).apply {
+            text = "🔊  Audio"
+            isAllCaps = false
+            textSize = if (isTv) 12f else 10f
+            setTextColor(Color.WHITE)
+            background = rounded("#D91C2D42", 22)
+            elevation = dp(5).toFloat()
+            setPadding(dp(11), dp(7), dp(11), dp(7))
+            isFocusable = true
+            contentDescription = "Choose audio language or track"
+            setOnClickListener { showAudioTrackDialog() }
+        }
+        playerContainer.addView(audioButton, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.START
+        ).apply {
+            leftMargin = dp(8)
+            topMargin = dp(54)
+        })
 
         channelsButton = Button(activity).apply {
             text = "☷  Channels"
@@ -717,6 +789,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             uiHandler.removeCallbacks(hideChannelButton)
             fullscreenButton.visibility = View.GONE
             ratioButton.visibility = View.GONE
+            audioButton.visibility = View.GONE
             channelsButton.visibility = View.GONE
             channelPrevButton.visibility = View.GONE
             channelNextButton.visibility = View.GONE
@@ -725,11 +798,34 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         } else {
             fullscreenButton.visibility = if (isFullscreen) View.GONE else View.VISIBLE
             ratioButton.visibility = View.VISIBLE
+            audioButton.visibility = View.VISIBLE
             lockButton.text = "🔒  Lock"
             channelPrevButton.visibility = if (isTv && !isFullscreen && current != null) View.VISIBLE else View.GONE
             channelNextButton.visibility = if (isTv && !isFullscreen && current != null) View.VISIBLE else View.GONE
             if (isFullscreen) revealChannelControl()
             else playerView.requestFocus()
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun showAudioTrackDialog() {
+        if (playerLocked) return
+        try {
+            TrackSelectionDialogBuilder(
+                activity,
+                "Audio track / language",
+                player,
+                C.TRACK_TYPE_AUDIO
+            )
+                .setShowDisableOption(false)
+                .build()
+                .show()
+        } catch (e: Exception) {
+            Toast.makeText(
+                activity,
+                "Audio track selection abhi available nahi hai: ${e.message ?: "no alternate track"}",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -935,11 +1031,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 parsed.forEach { entry ->
                     val name = cleanName(entry.name)
                     if (name.isBlank()) return@forEach
-                    val key = entry.country + "|" + name.lowercase(Locale.ROOT)
+                    val stableId = entry.tvgId?.takeIf { it.isNotBlank() } ?: name.lowercase(Locale.ROOT)
+                    val key = entry.country + "|" + stableId.lowercase(Locale.ROOT)
                     val channel = merged.getOrPut(key) {
-                        Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category)
+                        Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category, entry.tvgId)
                     }
                     if (!channel.urls.contains(entry.url)) channel.urls.add(entry.url)
+                    if (entry.headers.isNotEmpty()) channel.headersByUrl[entry.url] = entry.headers
                     if (channel.logoUrl.isNullOrBlank()) channel.logoUrl = entry.logoUrl
                     if (channel.category.isNullOrBlank()) channel.category = entry.category
                 }
@@ -995,11 +1093,13 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                         for (entry in entries.filter { it.country in supportedCountries }) {
                             val name = cleanName(entry.name)
                             if (name.isBlank()) continue
-                            val key = entry.country + "|" + name.lowercase(Locale.ROOT)
+                            val stableId = entry.tvgId?.takeIf { it.isNotBlank() } ?: name.lowercase(Locale.ROOT)
+                            val key = entry.country + "|" + stableId.lowercase(Locale.ROOT)
                             val channel = map.getOrPut(key) {
-                                Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category)
+                                Channel(name, entry.country, ArrayList(), entry.logoUrl, entry.category, entry.tvgId)
                             }
                             if (!channel.urls.contains(entry.url)) channel.urls.add(entry.url)
+                            if (entry.headers.isNotEmpty()) channel.headersByUrl[entry.url] = entry.headers
                             if (channel.logoUrl.isNullOrBlank()) channel.logoUrl = entry.logoUrl
                             if (channel.category.isNullOrBlank()) channel.category = entry.category
                         }
@@ -1078,31 +1178,71 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private fun parseM3u(text: String, fallbackCountry: String): List<ParsedChannel> {
         val out = ArrayList<ParsedChannel>()
         var name: String? = null
+        var tvgId: String? = null
         var detectedCountry = fallbackCountry
         var logoUrl: String? = null
         var category: String? = null
+        val headers = LinkedHashMap<String, String>()
+
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (line.isEmpty()) continue
+
             if (line.startsWith("#EXTINF", ignoreCase = true)) {
-                name = line.substringAfterLast(",").trim()
                 val attributes = Regex("""([\w-]+)\s*=\s*["']([^"']*)["']""")
                     .findAll(line)
                     .associate { it.groupValues[1].lowercase(Locale.ROOT) to it.groupValues[2].trim() }
+                val comma = line.indexOf(',')
+                // The first comma separates EXTINF metadata from the display name.
+                // Using substringAfterLast(",") used to truncate names containing commas.
+                name = if (comma >= 0) line.substring(comma + 1).trim()
+                    else attributes["tvg-name"].orEmpty()
+                if (name.isNullOrBlank()) name = attributes["tvg-name"]
+                tvgId = attributes["tvg-id"]?.takeIf { it.isNotBlank() }
                 val countryValue = attributes["tvg-country"]?.split(",")?.firstOrNull()?.trim().orEmpty()
                 detectedCountry = if (countryValue.isNotBlank()) normalizeCountry(countryValue) else fallbackCountry
                 category = attributes["group-title"] ?: attributes["category"]
                 logoUrl = attributes["tvg-logo"]?.takeIf {
                     it.startsWith("https://", true) || it.startsWith("http://", true)
                 }
+                headers.clear()
+            } else if (line.startsWith("#EXTVLCOPT:", ignoreCase = true)) {
+                val option = line.substringAfter(':').trim()
+                val splitAt = option.indexOf('=')
+                if (splitAt > 0) {
+                    val optionName = option.substring(0, splitAt).trim().lowercase(Locale.ROOT)
+                    val optionValue = option.substring(splitAt + 1).trim()
+                    val headerName = when (optionName) {
+                        "http-user-agent" -> "User-Agent"
+                        "http-referrer", "http-referer" -> "Referer"
+                        "http-origin" -> "Origin"
+                        "http-cookie" -> "Cookie"
+                        else -> null
+                    }
+                    if (!headerName.isNullOrBlank() && optionValue.isNotBlank()) {
+                        headers[headerName] = optionValue
+                    }
+                }
             } else if (!line.startsWith("#")) {
                 val n = name
-                if (n != null && (line.startsWith("http://") || line.startsWith("https://"))) {
-                    out.add(ParsedChannel(n, detectedCountry, line, logoUrl, category))
+                if (n != null && (line.startsWith("http://", true) || line.startsWith("https://", true))) {
+                    out.add(
+                        ParsedChannel(
+                            n,
+                            detectedCountry,
+                            line,
+                            logoUrl,
+                            category,
+                            tvgId,
+                            LinkedHashMap(headers)
+                        )
+                    )
                 }
                 name = null
+                tvgId = null
                 logoUrl = null
                 category = null
+                headers.clear()
                 detectedCountry = fallbackCountry
             }
         }
@@ -1163,10 +1303,16 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         return raw.replace(Regex("""\s*[(\[].*?[)\]]"""), "").trim()
     }
 
+    private fun sourcePreferenceKey(ch: Channel): String {
+        val stableId = ch.tvgId?.takeIf { it.isNotBlank() } ?: "${ch.country}|${ch.name}"
+        return "last_good_" + stableId.lowercase(Locale.ROOT).hashCode()
+    }
+
     private fun play(ch: Channel) {
         current = ch
         applyFilter()
-        urlIdx = 0
+        val lastGood = sourcePrefs.getString(sourcePreferenceKey(ch), null)
+        urlIdx = lastGood?.let { ch.urls.indexOf(it) }?.takeIf { it >= 0 } ?: 0
         if (isTv && !isFullscreen && !playerLocked) {
             channelPrevButton.visibility = View.VISIBLE
             channelNextButton.visibility = View.VISIBLE
@@ -1183,6 +1329,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             return
         }
         val url = ch.urls[urlIdx]
+        // Apply playlist-provided VLC options (User-Agent / Referer / Origin) to
+        // every HLS segment request as well as the master playlist request.
+        httpDataSourceFactory.setDefaultRequestProperties(ch.headersByUrl[url].orEmpty())
         val b = MediaItem.Builder().setUri(url)
         val path = url.substringBefore("?").lowercase(Locale.ROOT)
         when {
