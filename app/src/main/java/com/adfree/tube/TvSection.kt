@@ -69,6 +69,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private lateinit var fullscreenButton: Button
     private lateinit var ratioButton: Button
     private lateinit var channelsButton: Button
+    private lateinit var lockButton: Button
+    private lateinit var lockShield: TextView
+    private lateinit var channelPrevButton: Button
+    private lateinit var channelNextButton: Button
     private lateinit var channelOverlay: FrameLayout
     private lateinit var overlayList: ListView
     private lateinit var countryFilters: LinearLayout
@@ -79,8 +83,14 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private val logoCache = ConcurrentHashMap<String, Bitmap>()
     private val logoExecutor = Executors.newFixedThreadPool(3)
     private var isFullscreen = false
+    private var playerLocked = false
+    private val supportedCountries = setOf("PK", "IN", "BD", "SA")
     private val uiHandler = Handler(Looper.getMainLooper())
-    private val hideChannelButton = Runnable { channelsButton.visibility = View.GONE }
+    private val hideChannelButton = Runnable {
+        if (::channelsButton.isInitialized) channelsButton.visibility = View.GONE
+        if (::channelPrevButton.isInitialized) channelPrevButton.visibility = View.GONE
+        if (::channelNextButton.isInitialized) channelNextButton.visibility = View.GONE
+    }
 
     private var all: List<Channel> = emptyList()
     private var shown: List<Channel> = emptyList()
@@ -175,16 +185,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         playerView.isFocusable = true
         playerView.setOnClickListener {
-            if (isFullscreen) revealChannelControl()
-        }
-        playerView.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN && isFullscreen) {
-                when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { changeChannel(1); true }
-                    KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { changeChannel(-1); true }
-                    else -> false
-                }
-            } else false
+            if (isFullscreen && !playerLocked) revealChannelControl()
         }
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
@@ -342,6 +343,21 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         )
+        lockShield = TextView(activity).apply {
+            text = "🔒  PLAYER LOCKED\nUse the Unlock button to restore controls"
+            textSize = if (isTv) 17f else 13f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#9907111F"))
+            visibility = View.GONE
+            isClickable = true
+            isFocusable = false
+            setOnClickListener { }
+        }
+        playerContainer.addView(lockShield, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
         fullscreenButton = Button(activity).apply {
             text = "⛶  Full Screen"
             isAllCaps = false
@@ -486,19 +502,99 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
 
+        val channelNav = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = rounded("#D916263A", 18)
+            setPadding(dp(4), dp(3), dp(4), dp(3))
+        }
+        channelPrevButton = Button(activity).apply {
+            text = "◀  Previous"
+            isAllCaps = false
+            textSize = if (isTv) 13f else 10f
+            setTextColor(Color.WHITE)
+            background = rounded("#263D59", 14)
+            isFocusable = true
+            visibility = View.GONE
+            setOnClickListener { changeChannel(-1) }
+        }
+        channelNextButton = Button(activity).apply {
+            text = "Next  ▶"
+            isAllCaps = false
+            textSize = if (isTv) 13f else 10f
+            setTextColor(Color.WHITE)
+            background = rounded("#176B50", 14)
+            isFocusable = true
+            visibility = View.GONE
+            setOnClickListener { changeChannel(1) }
+        }
+        channelNav.addView(channelPrevButton, LinearLayout.LayoutParams(dp(if (isTv) 130 else 100), dp(42)))
+        channelNav.addView(channelNextButton, LinearLayout.LayoutParams(dp(if (isTv) 130 else 100), dp(42)).apply {
+            marginStart = dp(6)
+        })
+        playerContainer.addView(channelNav, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        ).apply {
+            bottomMargin = dp(8)
+        })
+
+        lockButton = Button(activity).apply {
+            text = "🔒  Lock"
+            isAllCaps = false
+            textSize = if (isTv) 12f else 10f
+            setTextColor(Color.WHITE)
+            background = rounded("#263D59", 18)
+            elevation = dp(5).toFloat()
+            isFocusable = true
+            contentDescription = "Lock or unlock TV player controls"
+            setOnClickListener { setPlayerLocked(!playerLocked) }
+        }
+        playerContainer.addView(lockButton, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.END
+        ).apply {
+            setMargins(dp(8), dp(8), dp(8), dp(8))
+        })
+
         playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
-                if (isFullscreen) {
+                if (isFullscreen && !playerLocked) {
                     if (visibility == View.VISIBLE) revealChannelControl()
                     else {
                         uiHandler.removeCallbacks(hideChannelButton)
                         channelsButton.visibility = View.GONE
+                        channelPrevButton.visibility = View.GONE
+                        channelNextButton.visibility = View.GONE
                     }
                 }
             }
         )
 
-        rootLayout = LinearLayout(activity)
+        rootLayout = object : LinearLayout(activity) {
+            override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                if (event.action == KeyEvent.ACTION_DOWN && current != null &&
+                    !playerLocked && ::channelOverlay.isInitialized &&
+                    channelOverlay.visibility != View.VISIBLE) {
+                    val direction = when (event.keyCode) {
+                        KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_CHANNEL_UP ->
+                            if (isTv || isFullscreen) 1 else 0
+                        KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_CHANNEL_DOWN ->
+                            if (isTv || isFullscreen) -1 else 0
+                        KeyEvent.KEYCODE_DPAD_UP -> if (isFullscreen) 1 else 0
+                        KeyEvent.KEYCODE_DPAD_DOWN -> if (isFullscreen) -1 else 0
+                        else -> 0
+                    }
+                    if (direction != 0) {
+                        changeChannel(direction)
+                        return true
+                    }
+                }
+                return super.dispatchKeyEvent(event)
+            }
+        }
         rootLayout.orientation = if (isTv) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         rootLayout.setBackgroundColor(Color.parseColor("#07111F"))
         applyNormalLayout()
@@ -583,20 +679,52 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     }
 
     private fun revealChannelControl() {
+        if (playerLocked || !isFullscreen) return
         uiHandler.removeCallbacks(hideChannelButton)
         channelsButton.visibility = View.VISIBLE
+        channelPrevButton.visibility = View.VISIBLE
+        channelNextButton.visibility = View.VISIBLE
         uiHandler.postDelayed(hideChannelButton, 3500)
     }
 
     private fun changeChannel(direction: Int) {
-        if (all.isEmpty()) return
-        val currentIndex = all.indexOf(current)
-        val next = if (currentIndex < 0) 0 else (currentIndex + direction + all.size) % all.size
-        play(all[next])
+        if (playerLocked) return
+        val channels = shown.ifEmpty { all.filter { it.country in supportedCountries } }
+        if (channels.isEmpty()) return
+        val currentIndex = channels.indexOf(current)
+        val nextIndex = if (currentIndex < 0) {
+            if (direction >= 0) 0 else channels.lastIndex
+        } else {
+            (currentIndex + direction + channels.size) % channels.size
+        }
+        play(channels[nextIndex])
         if (isFullscreen) revealChannelControl()
     }
 
+    private fun setPlayerLocked(locked: Boolean) {
+        playerLocked = locked
+        lockShield.visibility = if (locked) View.VISIBLE else View.GONE
+        playerView.useController = !locked
+        if (locked) {
+            uiHandler.removeCallbacks(hideChannelButton)
+            fullscreenButton.visibility = View.GONE
+            ratioButton.visibility = View.GONE
+            channelsButton.visibility = View.GONE
+            channelPrevButton.visibility = View.GONE
+            channelNextButton.visibility = View.GONE
+            lockButton.text = "🔓  Unlock"
+            lockButton.requestFocus()
+        } else {
+            fullscreenButton.visibility = if (isFullscreen) View.GONE else View.VISIBLE
+            ratioButton.visibility = View.VISIBLE
+            lockButton.text = "🔒  Lock"
+            if (isFullscreen) revealChannelControl()
+            else playerView.requestFocus()
+        }
+    }
+
     private fun showChannelOverlay() {
+        if (playerLocked) return
         uiHandler.removeCallbacks(hideChannelButton)
         channelsButton.visibility = View.GONE
         if (all.isEmpty()) {
@@ -621,6 +749,8 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         if (::channelOverlay.isInitialized) channelOverlay.visibility = View.GONE
         rootLayout.removeAllViews()
         fullscreenButton.text = "⛶ Full Screen"
+        channelPrevButton.visibility = View.GONE
+        channelNextButton.visibility = View.GONE
         if (isTv) {
             rootLayout.addView(
                 listPanel,
@@ -676,42 +806,25 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         countryFilters.removeAllViews()
         countryButtons.clear()
 
-        // Keep the three requested South Asian country shortcuts visible.
-        addCountryChip("ALL", "🌐", "All")
+        addCountryChip("ALL", "📺", "All 4")
         addCountryChip("PK", "🇵🇰", "Pakistan")
         addCountryChip("IN", "🇮🇳", "India")
         addCountryChip("BD", "🇧🇩", "Bangladesh")
+        addCountryChip("SA", "🇸🇦", "Saudi Arabia")
 
-        addFilterButton(countryFilters, "🌍 More Countries") {
-            showMoreCountries(Locale.getISOCountries().toList())
-        }
         addFilterButton(countryFilters, if (sportsOnly) "🏆 Sports ✓" else "🏆 Sports") {
-            if (requireCountryForCategory()) {
-                sportsOnly = !sportsOnly
-                applyFilter()
-                buildCountryButtons()
-            }
+            sportsOnly = !sportsOnly
+            country = "ALL"
+            contentCategory = "ALL"
+            applyFilter()
+            buildCountryButtons()
         }
-        addFilterButton(countryFilters, if (contentCategory == "KIDS") "🧒 Kids ✓" else "🧒 Kids") {
-            toggleContentCategory("KIDS")
-        }
-        addFilterButton(countryFilters, if (contentCategory == "ANIMATION") "🎨 Animation ✓" else "🎨 Animation") {
-            toggleContentCategory("ANIMATION")
-        }
-        addFilterButton(countryFilters, if (contentCategory == "DISCOVERY") "🌿 Discovery ✓" else "🌿 Discovery") {
-            toggleContentCategory("DISCOVERY")
-        }
-        addFilterButton(countryFilters, "+ Link") { addPlaylistDialog() }
+        addFilterButton(countryFilters, "↻ Refresh") { reload() }
         addFilterButton(countryFilters, "★ Official") { showOfficialServices() }
-        addFilterButton(countryFilters, "↻") { reload() }
         refreshCountryChips()
     }
 
-    private fun requireCountryForCategory(): Boolean {
-        if (country != "ALL" && country != "OTHER") return true
-        Toast.makeText(activity, "Pehle koi country select karein", Toast.LENGTH_SHORT).show()
-        return false
-    }
+    private fun requireCountryForCategory(): Boolean = country in supportedCountries
 
     private fun toggleContentCategory(category: String) {
         if (!requireCountryForCategory()) return
@@ -732,14 +845,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             isFocusable = true
             setOnClickListener {
                 country = code
-                if (code == "ALL") {
-                    contentCategory = "ALL"
-                    sportsOnly = false
-                    buildCountryButtons()
-                } else {
-                    applyFilter()
-                    refreshCountryChips()
-                }
+                sportsOnly = false
+                contentCategory = "ALL"
+                applyFilter()
+                buildCountryButtons()
             }
         }
         countryButtons[code] = chip
@@ -855,22 +964,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         status.text = "TV channels tez load ho rahe hain..."
         Thread {
             val map = LinkedHashMap<String, Channel>()
-            val custom = (prefs.getStringSet("playlists", emptySet()) ?: emptySet())
-                .map { Pair("USR", it) }
-            // Avoid downloading huge global catalogues sequentially on older Android TVs.
-            // Country and regional feeds cover the most useful channels; other countries
-            // are loaded on demand from the country selector.
-            val preferred = Config.PLAYLISTS.filter { (_, url) ->
-                url.contains("/countries/") ||
-                url.contains("/categories/sports.m3u") ||
-                url.contains("/regions/gcc.m3u") ||
-                url.contains("/regions/arab.m3u") ||
-                url.contains("/regions/sas.m3u") ||
-                url.contains("/verified.m3u") ||
-                url.contains("/playlists/all.m3u") ||
-                url.contains("/playlists/quality/720p.m3u")
-            }
-            val sources = (preferred + custom).distinctBy { it.second }
+            // Discard saved custom playlists from older builds so they cannot reintroduce
+            // unrelated countries into the four-country TV catalogue.
+            prefs.edit().remove("playlists").apply()
+            val sources = Config.PLAYLISTS.distinctBy { it.second }
             val pool = Executors.newFixedThreadPool(4)
             try {
                 val tasks = sources.map { source ->
@@ -884,7 +981,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                     if (future.isCancelled) continue
                     try {
                         val (fallbackCountry, entries) = future.get()
-                        for (entry in entries) {
+                        for (entry in entries.filter { it.country in supportedCountries }) {
                             val name = cleanName(entry.name)
                             if (name.isBlank()) continue
                             val key = entry.country + "|" + name.lowercase(Locale.ROOT)
@@ -906,7 +1003,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             map.values.forEach { channel ->
                 channel.urls.sortBy { if (it.startsWith("https")) 0 else 1 }
             }
-            val priority = listOf("PK", "IN", "BD", "SA", "AF")
+            val priority = listOf("PK", "IN", "BD", "SA")
             val result = map.values.sortedWith(
                 compareBy<Channel> {
                     val index = priority.indexOf(it.country)
@@ -918,9 +1015,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 buildCountryButtons()
                 applyFilter()
                 status.text = if (all.isEmpty()) {
-                    "Channels load nahi huay. Internet check karein aur Retry karein."
+                    "Channels load nahi huay. Internet check karein aur Refresh karein."
                 } else {
-                    "${all.size} channels loaded • All countries"
+                    "${all.size} channels loaded • Pakistan, India, Bangladesh & Saudi Arabia"
                 }
             }
         }.start()
@@ -928,16 +1025,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
     private fun applyFilter() {
         val q = search.text.toString().trim()
-        val priorityCodes = setOf("PK", "IN", "BD", "SA", "AF")
         shown = all.filter {
-            val countryMatch = when (country) {
-                "ALL" -> true
-                "OTHER" -> it.country !in priorityCodes && it.country != "USR"
-                else -> it.country == country
-            }
-            countryMatch &&
+            it.country in supportedCountries &&
+                (country == "ALL" || it.country == country) &&
                 (!sportsOnly || isSportsChannel(it)) &&
-                matchesContentCategory(it) &&
                 (q.isEmpty() || it.name.contains(q, ignoreCase = true))
         }
         adapter.clear()
@@ -946,7 +1037,12 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         })
         adapter.notifyDataSetChanged()
         if (::countryFilters.isInitialized) refreshCountryChips()
-        status.text = if (shown.isEmpty()) "No channels found in this country" else "${shown.size} channels"
+        status.text = when {
+            shown.isEmpty() -> if (sportsOnly) "No public sports channels found for these four countries" else "No channels found"
+            sportsOnly -> "${shown.size} sports channels • 4 countries"
+            country == "ALL" -> "${shown.size} channels • 4 countries only"
+            else -> "${shown.size} channels • ${countryLabel(country)}"
+        }
     }
 
     private fun fetch(url: String): String? {
@@ -1026,7 +1122,6 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         "IN" -> "India"
         "BD" -> "Bangladesh"
         "SA" -> "Saudi Arabia"
-        "AF" -> "Afghanistan"
         "USR" -> "My playlist"
         "OTHER" -> "Other country"
         else -> Locale("", code.uppercase()).displayCountry.ifBlank { code.uppercase() }
