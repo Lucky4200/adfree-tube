@@ -3,6 +3,7 @@ package com.adfree.tube
 import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -28,6 +29,8 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private val input = EditText(activity)
     private val info = TextView(activity)
     private val active = LinearLayout(activity)
+    private val scanProgress = ProgressBar(activity).apply { isIndeterminate = true; visibility = View.GONE }
+    private val scanStatus = TextView(activity).apply { text = "Ready to scan"; textSize = 11f; setTextColor(Color.rgb(145,164,188)) }
     private var mediaUrl = ""
     private var mime = ""
     private val handler = Handler(Looper.getMainLooper())
@@ -46,13 +49,24 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
             setTextColor(Color.rgb(145,164,188))
         },params(5,10))
         input.hint="Copied link will appear here automatically"
-        input.setSingleLine(true); input.textSize=14f; input.setTextColor(Color.WHITE)
-        input.setHintTextColor(Color.GRAY); input.setPadding(dp(12),dp(11),dp(12),dp(11))
+        input.setSingleLine(true); input.textSize=12f; input.setTextColor(Color.WHITE)
+        input.setHintTextColor(Color.GRAY); input.setPadding(dp(10),dp(10),dp(8),dp(10))
         input.background=rounded()
-        root.addView(input,LinearLayout.LayoutParams(-1,dp(48)))
-        val detect=button("Detect Link")
-        detect.setOnClickListener { detect() }
-        root.addView(detect,params(8,6))
+        val scanRow = LinearLayout(activity).apply { orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER_VERTICAL }
+        scanRow.addView(input, LinearLayout.LayoutParams(0,dp(50),1f))
+        scanRow.addView(Button(activity).apply {
+            text="↻"; textSize=26f; isAllCaps=false; setTextColor(Color.WHITE)
+            background=GradientDrawable().apply { shape=GradientDrawable.OVAL; setColor(Color.rgb(20,145,101)); setStroke(dp(2),Color.rgb(105,235,190)) }
+            contentDescription="Paste copied link and scan"
+            setOnClickListener { pasteClipboardAndDetect() }
+        },LinearLayout.LayoutParams(dp(56),dp(56)).apply { marginStart=dp(10) })
+        root.addView(scanRow,params(8,5))
+        val scanStatusRow=LinearLayout(activity).apply {
+            orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER_VERTICAL
+            addView(scanProgress,LinearLayout.LayoutParams(dp(18),dp(18)))
+            addView(scanStatus,LinearLayout.LayoutParams(-2,-2).apply { marginStart=dp(7) })
+        }
+        root.addView(scanStatusRow,params(1,7))
         info.text="Link abhi detect nahi hua."
         info.textSize=12f; info.setTextColor(Color.rgb(205,220,240))
         info.setPadding(dp(10),dp(10),dp(10),dp(10)); info.background=rounded()
@@ -68,6 +82,21 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         },params(6,0))
         view=root
     }
+    private fun pasteClipboardAndDetect() {
+        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val copied = runCatching {
+            if (clipboard.hasPrimaryClip() && clipboard.primaryClip!!.itemCount > 0) clipboard.primaryClip!!.getItemAt(0).coerceToText(activity)?.toString()?.trim().orEmpty() else ""
+        }.getOrDefault("")
+        val link = copied.lineSequence().firstOrNull { it.startsWith("https://", true) || it.startsWith("http://", true) || it.startsWith("www.", true) }.orEmpty()
+        if (link.isBlank()) {
+            Toast.makeText(activity,"Pehle video link Copy karein, phir gol Scan button dabayein.",Toast.LENGTH_LONG).show()
+            scanStatus.text="Clipboard mein link nahi mila"
+            return
+        }
+        input.setText(link)
+        detect()
+    }
+
     private fun detect() {
         val raw = input.text.toString().trim()
         val normalized = if (raw.startsWith("www.", true) || raw.startsWith("youtu.be/", true) || raw.startsWith("youtube.com/", true)) "https://$raw" else raw
