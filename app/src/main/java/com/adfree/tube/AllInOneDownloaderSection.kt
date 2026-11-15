@@ -65,7 +65,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
             setBackgroundColor(Color.rgb(6,13,25))
         }
         root.addView(label("ALL-IN-ONE DOWNLOADER",19,true))
-        root.addView(label("Video ya audio link paste karein aur Detect Link dabayein.",11).apply {
+        root.addView(label("Video/audio link Copy karein, phir neeche clipboard card par tap karein.",11).apply {
             setTextColor(Color.rgb(145,164,188))
         },params(5,10))
         val platforms = LinearLayout(activity).apply { orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER }
@@ -131,7 +131,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         thread {
             try {
                 val video = YtDlpEngine.extract(normalized)
-                val heights = video.formats.orEmpty().map { it.height }.filter { it > 0 }.distinct().sortedDescending()
+                val heights = video.formats.orEmpty().map { it.height }.filter { it in 1..4320 }.distinct().sortedDescending()
                 activity.runOnUiThread {
                     detectedInfo = video
                     mediaUrl = normalized
