@@ -15,6 +15,7 @@ import android.widget.Toast
 class MoviesSection(private val activity: Activity) : Section {
 
     private val chrome = FullscreenChrome(activity)
+    private val downloadPanel = WebDownloadPanel(activity)
     private lateinit var web: WebView
     override val view: View
 
@@ -76,6 +77,8 @@ class MoviesSection(private val activity: Activity) : Section {
         col.addView(View(activity).apply { setBackgroundColor(Color.rgb(36, 57, 79)) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
         col.addView(web, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        downloadPanel.attach(web)
+        col.addView(downloadPanel.view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         view = col
         web.loadUrl(Config.MOVIES_URL)
     }
