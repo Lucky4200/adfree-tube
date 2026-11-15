@@ -51,7 +51,7 @@ object Config {
         Pair("Pakistan • ARY News Live", "https://live.arynews.tv/pk/"),
         Pair("Pakistan • PTV Sports Live", "https://www.ptv-sports.com.pk/live-streaming/"),
         Pair("India • Prasar Bharati / DD Channels", "https://prasarbharati.gov.in/en/dd-channels/"),
-        Pair("India • Animal Planet HD English (official JioTV; subscription/sign-in may be required)", "https://www.jiotv.com/live-channel/animal-planet-hd-world/286/just-animals/250902286015"),
+        Pair("India • Animal Planet HD English (official JioTV; subscription/sign-in may be required)", "https://www.jiotv.com/live-channel/animal-planet-hd-world/286/just-animals/251004286016"),
         Pair("Saudi Arabia • Aloula / Saudi Broadcasting Authority", "https://aloula.sba.sa/"),
         Pair("Bangladesh • BTV, BTV News, BTV Chattogram, Sangsad", "https://btvlive.gov.bd/")
     )
