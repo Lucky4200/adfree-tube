@@ -6,9 +6,9 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.MediaItem
-import androidx.media3.common.util.ProgressHolder
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.TransformationException
 import androidx.media3.transformer.Transformer
 import java.io.File
