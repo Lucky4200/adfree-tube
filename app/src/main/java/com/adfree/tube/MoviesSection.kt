@@ -110,7 +110,7 @@ class MoviesSection(private val activity: Activity) : Section {
         return false
     }
 
-    override fun onShow() = web.onResume()
-    override fun onHide() = web.onPause()
+    override fun onShow() { web.onResume(); downloadPanel.resume() }
+    override fun onHide() { downloadPanel.pause(); web.onPause() }
     override fun onDestroy() = web.destroy()
 }
