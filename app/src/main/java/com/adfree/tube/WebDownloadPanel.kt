@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Handler
+import android.os.Environment
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
@@ -31,7 +32,7 @@ object DownloadStore {
     fun enqueue(context: Context, url: String, title: String, mimeType: String? = null): Long {
         val uri = Uri.parse(url)
         val ext = uri.path.orEmpty().substringAfterLast('.', "").lowercase()
-        val allowed = setOf("mp4", "m4v", "webm", "mov", "mp3", "m4a", "aac", "wav", "ogg")
+        val allowed = setOf("mp4", "m4v", "webm", "mov", "mp3", "m4a", "aac", "wav", "ogg", "opus", "flac")
         require(uri.scheme in listOf("http", "https") &&
             (ext in allowed || mimeType?.startsWith("video/") == true || mimeType?.startsWith("audio/") == true)) {
             "Direct downloadable video/audio file detect nahi hui. HLS/DASH ya protected stream ko direct file ki tarah download nahi kiya ja sakta."
@@ -197,7 +198,9 @@ class WebDownloadPanel(private val activity: Activity) {
         @JavascriptInterface
         fun onNoMedia() {
             activity.runOnUiThread {
-                if (mediaUrl.isBlank() && pageUrl.isBlank()) view.visibility = View.GONE
+                mediaUrl = ""
+                pageUrl = ""
+                view.visibility = View.GONE
             }
         }
     }
