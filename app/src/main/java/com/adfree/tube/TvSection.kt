@@ -183,6 +183,11 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         playerView.keepScreenOn = true
         playerView.setShutterBackgroundColor(Color.BLACK)
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        // The built-in ExoPlayer next/previous buttons move between media items,
+        // but TV channels are separate app entries. Hide those no-op controls;
+        // the channel-level buttons below perform the correct action.
+        playerView.findViewById<View>(androidx.media3.ui.R.id.exo_prev)?.visibility = View.GONE
+        playerView.findViewById<View>(androidx.media3.ui.R.id.exo_next)?.visibility = View.GONE
         playerView.isFocusable = true
         playerView.setOnClickListener {
             if (isFullscreen && !playerLocked) revealChannelControl()
@@ -749,8 +754,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         if (::channelOverlay.isInitialized) channelOverlay.visibility = View.GONE
         rootLayout.removeAllViews()
         fullscreenButton.text = "⛶ Full Screen"
-        channelPrevButton.visibility = View.GONE
-        channelNextButton.visibility = View.GONE
+        val showChannelSteps = isTv && current != null && !playerLocked
+        channelPrevButton.visibility = if (showChannelSteps) View.VISIBLE else View.GONE
+        channelNextButton.visibility = if (showChannelSteps) View.VISIBLE else View.GONE
         if (isTv) {
             rootLayout.addView(
                 listPanel,
@@ -1201,6 +1207,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
 
     override fun onHide() {
         player.pause()
+        uiHandler.removeCallbacks(hideChannelButton)
+        channelsButton.visibility = View.GONE
+        channelPrevButton.visibility = View.GONE
+        channelNextButton.visibility = View.GONE
         if (isFullscreen) {
             isFullscreen = false
             uiHandler.removeCallbacks(hideChannelButton)
