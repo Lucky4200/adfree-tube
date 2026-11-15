@@ -1468,6 +1468,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             )
         }
         web.visibility = View.VISIBLE
+        if (!playerLocked) {
+            ratioButton.visibility = View.GONE
+            audioButton.visibility = View.GONE
+        }
         web.onResume()
         web.loadUrl(url)
     }
@@ -1479,6 +1483,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             onPause()
         }
         playerView.visibility = View.VISIBLE
+        if (!playerLocked) {
+            ratioButton.visibility = View.VISIBLE
+            audioButton.visibility = View.VISIBLE
+        }
     }
 
     private fun startUrl() {
@@ -1581,6 +1589,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             stopLoading()
             webChromeClient = null
             webViewClient = WebViewClient()
+            (parent as? ViewGroup)?.removeView(this)
             destroy()
         }
         embeddedWebView = null
