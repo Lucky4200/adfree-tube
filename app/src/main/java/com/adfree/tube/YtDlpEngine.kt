@@ -159,7 +159,8 @@ object YtDlpEngine {
             .addOption("--no-playlist")
             .addOption("--no-mtime")
             .addOption("--newline")
-            .addOption("--concurrent-fragments", "8")
+            .addOption("--concurrent-fragments", "16")
+            .addOption("--socket-timeout", "15")
 
         if (useAndroidClient && isYouTubeUrl(url)) {
             request.addOption("--extractor-args", "youtube:player_client=android")
