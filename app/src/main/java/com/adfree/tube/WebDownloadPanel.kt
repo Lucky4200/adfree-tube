@@ -406,6 +406,7 @@ class WebDownloadPanel(private val activity: Activity) {
                         DownloadStore.enqueue(activity, source, mediaTitle, mediaMime.ifBlank {
                             if (isAudio) "audio/$ext" else "video/$ext"
                         })
+                        processing = false
                         heading.text = "DOWNLOAD STARTED"
                         detail.text = "Original file is downloading. Check the Downloads tab."
                         Toast.makeText(activity, "Download started", Toast.LENGTH_LONG).show()
@@ -427,7 +428,10 @@ class WebDownloadPanel(private val activity: Activity) {
                     Media3Export.start(activity, source, audioOnly = which == 1) { status ->
                         activity.runOnUiThread {
                             detail.text = status
-                            if (status.startsWith("Complete") || status.startsWith("Export failed")) {
+                            if (status.startsWith("Complete") ||
+                                status.contains("failed", ignoreCase = true) ||
+                                status.contains("nahi hua", ignoreCase = true) ||
+                                status.contains("nahi ho saka", ignoreCase = true)) {
                                 processing = false
                                 if (status.startsWith("Complete")) heading.text = "DOWNLOAD COMPLETE"
                             }
