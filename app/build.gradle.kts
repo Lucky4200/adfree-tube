@@ -36,6 +36,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
+    implementation("androidx.media3:media3-transformer:1.3.1")
 
     // Brave native engine is used on Android 8.0+; Android 7.1 uses the built-in fallback blocker.
     implementation("io.github.mlm-games:adblock:0.1.3")
