@@ -25,6 +25,7 @@ class DownloadSection(private val activity: Activity) : Section {
     private val detected = TextView(activity)
     private val status = TextView(activity)
     private val history = LinearLayout(activity)
+    private val lastSamples = mutableMapOf<Long, Pair<Long, Long>>()
     private val handler = Handler(Looper.getMainLooper())
     override val view: View
 
@@ -139,6 +140,12 @@ class DownloadSection(private val activity: Activity) : Section {
                 val total = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                 val code = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                 val percent = if (total > 0) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else 0
+                val now = System.currentTimeMillis()
+                val previous = lastSamples[id]
+                val speed = if (previous != null && now > previous.second) {
+                    ((downloaded - previous.first).coerceAtLeast(0L) * 1000L) / (now - previous.second)
+                } else 0L
+                lastSamples[id] = downloaded to now
                 val state = when (code) {
                     DownloadManager.STATUS_PENDING -> "Waiting"
                     DownloadManager.STATUS_RUNNING -> "Downloading • $percent%"
@@ -153,7 +160,8 @@ class DownloadSection(private val activity: Activity) : Section {
                     background = rounded("#14263D", 10)
                 }
                 row.addView(label(title, 12, true))
-                row.addView(label("$state  •  ${formatBytes(downloaded)} / ${if (total > 0) formatBytes(total) else "unknown"}", 10).apply {
+                val speedLabel = if (code == DownloadManager.STATUS_RUNNING) " • ${formatBytes(speed)}/s" else ""
+                row.addView(label("$state  •  ${formatBytes(downloaded)} / ${if (total > 0) formatBytes(total) else "unknown"}$speedLabel", 10).apply {
                     setTextColor(Color.rgb(166, 190, 216))
                 }, params(top = 4))
                 row.addView(ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
