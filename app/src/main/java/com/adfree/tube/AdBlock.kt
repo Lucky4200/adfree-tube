@@ -53,15 +53,34 @@ object AdBlock {
     }, true);
   } catch(e) {}
 
-  // Hide common page ads, but never hide YouTube's player ad container:
-  // doing so can hide the Skip Ad button itself.
+  // Hide common YouTube sponsored placements and ordinary page ads.
+  // Do not hide the video player itself: the stream may contain server-side ads.
   try {
-    var css = 'ins.adsbygoogle,[id^="google_ads"],[class*="adsbox"],[class*="ad-banner"],' +
-      '[id*="ad-container"],[class*="popup-ad"],[class*="ad-wrapper"],' +
-      '[id^="ad-"],[class^="ad-"],[class*="advertisement"],[id*="sponsor-ad"],' +
-      'iframe[src*="doubleclick"],iframe[src*="googlesyndication"],' +
-      'iframe[src*="/ads/"],iframe[src*="popads"],iframe[src*="adsterra"],' +
-      'ytd-ad-slot-renderer{display:none!important}';
+    var css = [
+      'ins.adsbygoogle',
+      '[id^="google_ads"]',
+      '[class*="adsbox"]',
+      '[class*="ad-banner"]',
+      '[id*="ad-container"]',
+      '[class*="popup-ad"]',
+      '[class*="ad-wrapper"]',
+      '[class*="advertisement"]',
+      '[id*="sponsor-ad"]',
+      'iframe[src*="doubleclick"]',
+      'iframe[src*="googlesyndication"]',
+      'iframe[src*="/ads/"]',
+      'iframe[src*="popads"]',
+      'iframe[src*="adsterra"]',
+      'ytd-ad-slot-renderer',
+      'ytd-in-feed-ad-layout-renderer',
+      'ytd-banner-promo-renderer',
+      'ytd-promoted-sparkles-web-renderer',
+      'ytd-promoted-sparkles-text-search-renderer',
+      'ytd-display-ad-renderer',
+      'ytd-promoted-video-renderer',
+      'yt-mealbar-promo-renderer',
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"]'
+    ].join(',') + '{display:none!important;visibility:hidden!important;height:0!important;min-height:0!important}';
     if (!document.querySelector('style[data-adfree-tube="ad-css"]')) {
       var s = document.createElement('style');
       s.setAttribute('data-adfree-tube', 'ad-css');
@@ -72,16 +91,19 @@ object AdBlock {
 
   function scan(root) {
     if (!root || !root.querySelectorAll) return;
-    var selectors = [
-      '.ytp-ad-skip-button',
-      '.ytp-ad-skip-button-modern',
-      '.ytp-ad-skip-button-container button',
-      '.ytp-skip-ad-button',
-      'button[aria-label]',
-      '.ytp-ad-overlay-close-button',
-      '.ytp-ad-overlay-close-button button'
-    ];
     try {
+      // YouTube changes button labels between desktop/mobile layouts.
+      // Match the known skip-button classes directly, or a visible button
+      // whose accessible label/text contains "skip".
+      var selectors = [
+        '.ytp-ad-skip-button',
+        '.ytp-ad-skip-button-modern',
+        '.ytp-ad-skip-button-container button',
+        '.ytp-skip-ad-button',
+        'button.ytp-ad-skip-button',
+        '.ytp-ad-overlay-close-button',
+        '.ytp-ad-overlay-close-button button'
+      ];
       for (var i = 0; i < selectors.length; i++) {
         var nodes = root.querySelectorAll(selectors[i]);
         for (var j = 0; j < nodes.length; j++) {
@@ -90,16 +112,16 @@ object AdBlock {
           var style = window.getComputedStyle(el);
           var label = ((el.getAttribute('aria-label') || '') + ' ' +
                        (el.innerText || el.textContent || '')).toLowerCase();
-          var isSkip = label.indexOf('skip') >= 0 &&
-                       (label.indexOf('ad') >= 0 || (el.className || '').toString().toLowerCase().indexOf('skip-ad') >= 0);
-          if (isSkip && rect.width > 0 && rect.height > 0 &&
+          var cls = (el.className || '').toString().toLowerCase();
+          var knownSkip = /ytp-ad-skip-button|ytp-skip-ad-button/.test(cls);
+          var labelledSkip = /skip/.test(label);
+          if ((knownSkip || labelledSkip) && rect.width > 0 && rect.height > 0 &&
               style.display !== 'none' && style.visibility !== 'hidden' &&
               !el.disabled && el.getAttribute('aria-disabled') !== 'true') {
             el.click();
           }
         }
       }
-      // Search open shadow roots used by some YouTube player controls.
       var all = root.querySelectorAll('*');
       for (var k = 0; k < all.length; k++) {
         if (all[k].shadowRoot) scan(all[k].shadowRoot);
@@ -116,7 +138,7 @@ object AdBlock {
       attributeFilter: ['class', 'style', 'aria-label', 'disabled']
     });
   } catch(e) {}
-  try { window.setInterval(trySkip, 500); } catch(e) {}
+  try { window.setInterval(trySkip, 750); } catch(e) {}
 })();
 """
 }
