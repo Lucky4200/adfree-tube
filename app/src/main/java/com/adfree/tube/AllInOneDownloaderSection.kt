@@ -45,7 +45,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         root.addView(label("Video ya audio link paste karein aur Detect Link dabayein.",11).apply {
             setTextColor(Color.rgb(145,164,188))
         },params(5,10))
-        input.hint="Paste video / audio URL"
+        input.hint="Copied link will appear here automatically"
         input.setSingleLine(true); input.textSize=14f; input.setTextColor(Color.WHITE)
         input.setHintTextColor(Color.GRAY); input.setPadding(dp(12),dp(11),dp(12),dp(11))
         input.background=rounded()
