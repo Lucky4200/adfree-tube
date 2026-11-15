@@ -196,7 +196,6 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
                     val audioOnly = selected.startsWith("Audio only")
                     val selector = when {
                         audioOnly -> "bestaudio/best"
-                        selected == "MP4 compatible" -> "best[ext=mp4]/best"
                         selected == "Best available quality • up to 8K" ->
                             "bestvideo[height<=4320]+bestaudio/best[height<=4320]"
                         selected == "MP4 compatible" ->
