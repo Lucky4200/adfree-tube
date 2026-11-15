@@ -13,6 +13,8 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.os.Handler
 import android.os.Looper
+import android.os.Environment
+import java.io.File
 
 class DownloadSection(private val activity: Activity) : Section {
     private val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -70,7 +72,26 @@ class DownloadSection(private val activity: Activity) : Section {
                 list.addView(row, params(0,8))
             }
         }
-        if (count == 0) list.addView(label("Abhi koi completed download nahi hai.", 12).apply {
+        val exportPrefs = activity.getSharedPreferences("adfree_tube_media3_exports", Context.MODE_PRIVATE)
+        val exportNames = exportPrefs.getStringSet("files", emptySet()).orEmpty()
+        val exportDir = activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: activity.filesDir
+        exportNames.sortedDescending().forEach { name ->
+            val file = File(exportDir, name)
+            if (file.exists()) {
+                count++
+                val row = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = rounded()
+                }
+                row.addView(label("✓  $name", 13, true))
+                row.addView(label("Completed • ${file.length() / 1024L} KB • Media3 export", 11).apply {
+                    setTextColor(Color.rgb(124,245,197))
+                }, params(4,0))
+                list.addView(row, params(0,8))
+            }
+        }
+        if (count == 0) list.addView(label("Abhi koi download nahi hai.", 12).apply {
             setTextColor(Color.rgb(145,164,188))
         })
     }
