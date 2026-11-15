@@ -143,6 +143,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private var sportsOnly = false
     private var contentCategory = "ALL"
     private var current: Channel? = null
+    private var pendingRestoreChannel: Channel? = null
     private var urlIdx = 0
     private var bufferingTimeout: Runnable? = null
 
@@ -1005,13 +1006,35 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     private fun showOfficialServices() {
         val services = Config.OFFICIAL_SERVICES
         AlertDialog.Builder(activity)
-            .setTitle("Official streaming services")
+            .setTitle("Official services • open inside AdFree Tube")
             .setItems(services.map { it.first }.toTypedArray()) { dialog, which ->
                 if (which in services.indices) {
-                    try {
-                        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(services[which].second)))
-                    } catch (_: Exception) {
-                        Toast.makeText(activity, "Browser open nahi ho saka", Toast.LENGTH_SHORT).show()
+                    val (name, url) = services[which]
+                    val existing = all.firstOrNull { url in it.urls }
+                    pendingRestoreChannel = current
+                    if (existing != null) {
+                        play(existing)
+                    } else {
+                        val code = when {
+                            name.startsWith("Pakistan") -> "PK"
+                            name.startsWith("India") -> "IN"
+                            name.startsWith("Bangladesh") -> "BD"
+                            name.startsWith("Saudi") -> "SA"
+                            else -> "OTHER"
+                        }
+                        val page = Channel(
+                            name.substringAfter("•").trim(),
+                            code,
+                            arrayListOf(url),
+                            category = "official",
+                            tvgId = "official-" + url.hashCode()
+                        )
+                        page.webPlayerUrls.add(url)
+                        current = page
+                        urlIdx = 0
+                        showEmbeddedWebPlayer(url)
+                        status.text = "$name • official page inside AdFree Tube"
+                        applyFilter()
                     }
                 }
                 dialog.dismiss()
@@ -1047,7 +1070,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         status.text = "Loading ${countryLabel(code)} channels..."
         Thread {
             val countryUrl = "https://iptv-org.github.io/iptv/countries/${code.lowercase(Locale.ROOT)}.m3u"
-            val rawUrl = "https://iptv-org.github.io/iptv/raw/${code.lowercase(Locale.ROOT)}.m3u"
+            val rawUrl = "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/${code.lowercase(Locale.ROOT)}.m3u"
             val parsed = (fetch(countryUrl)?.let { parseM3u(it, code) } ?: emptyList()) +
                 (fetch(rawUrl)?.let { parseM3u(it, code) } ?: emptyList())
             activity.runOnUiThread {
@@ -1163,6 +1186,25 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             val avtEmbedUrl = "https://www.mjunoon.tv/embedplayer/avt-khyber-tv-live.html"
             if (!avtChannel.urls.contains(avtEmbedUrl)) avtChannel.urls.add(avtEmbedUrl)
             avtChannel.webPlayerUrls.add(avtEmbedUrl)
+            val avtOfficialUrl = "https://avtkhyber.tv/khyber-tv-live-streaming/"
+            if (!avtChannel.urls.contains(avtOfficialUrl)) avtChannel.urls.add(avtOfficialUrl)
+            avtChannel.webPlayerUrls.add(avtOfficialUrl)
+
+            // Add official broadcaster portals as in-app fallbacks/channels by country.
+            Config.OFFICIAL_CHANNELS.forEach { (name, code, url) ->
+                val key = "$code|official|$url"
+                val channel = map.getOrPut(key) {
+                    Channel(
+                        name,
+                        code,
+                        ArrayList(),
+                        category = "official",
+                        tvgId = "official-" + url.hashCode()
+                    )
+                }
+                if (!channel.urls.contains(url)) channel.urls.add(url)
+                channel.webPlayerUrls.add(url)
+            }
 
             map.values.forEach { channel ->
                 channel.urls.sortWith(
@@ -1433,6 +1475,12 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webChromeClient = WebChromeClient()
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val scheme = request?.url?.scheme?.lowercase(Locale.ROOT) ?: return true
+                    // Keep broadcaster navigation inside AdFree Tube. Block external app schemes.
+                    return scheme != "http" && scheme != "https"
+                }
+
                 override fun onPageFinished(view: WebView?, pageUrl: String?) {
                     super.onPageFinished(view, pageUrl)
                     if (current?.webPlayerUrls?.contains(url) == true) {
@@ -1538,6 +1586,26 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
     override fun onBack(): Boolean {
         if (isFullscreen) {
             toggleFullscreen()
+            return true
+        }
+
+        val web = embeddedWebView
+        if (web?.visibility == View.VISIBLE) {
+            // A page opened from the Official menu returns to the channel that was playing.
+            val restore = pendingRestoreChannel
+            pendingRestoreChannel = null
+            if (restore != null) {
+                play(restore)
+                return true
+            }
+            if (web.canGoBack()) {
+                web.goBack()
+                return true
+            }
+            current = null
+            player.stop()
+            hideEmbeddedWebPlayer()
+            applyFilter()
             return true
         }
         return false
