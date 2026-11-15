@@ -1132,7 +1132,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 status.text = if (all.isEmpty()) {
                     "Channels load nahi huay. Internet check karein aur Refresh karein."
                 } else {
-                    "${all.size} channels loaded • Pakistan, India, Bangladesh & Saudi Arabia"
+                    val counts = listOf("PK", "IN", "BD", "SA").joinToString("  •  ") { code ->
+                        "$code ${all.count { it.country == code }}"
+                    }
+                    "${all.size} channels loaded  •  $counts"
                 }
             }
         }.start()
@@ -1186,6 +1189,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         var detectedCountry = fallbackCountry
         var logoUrl: String? = null
         var category: String? = null
+        var geoBlocked = false
         val headers = LinkedHashMap<String, String>()
 
         for (raw in text.lineSequence()) {
@@ -1209,6 +1213,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 logoUrl = attributes["tvg-logo"]?.takeIf {
                     it.startsWith("https://", true) || it.startsWith("http://", true)
                 }
+                geoBlocked = line.contains("[Geo-blocked]", ignoreCase = true)
                 headers.clear()
             } else if (line.startsWith("#EXTVLCOPT:", ignoreCase = true)) {
                 val option = line.substringAfter(':').trim()
@@ -1229,7 +1234,9 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 }
             } else if (!line.startsWith("#")) {
                 val n = name
-                if (n != null && (line.startsWith("http://", true) || line.startsWith("https://", true))) {
+                if (n != null &&
+                    (line.startsWith("http://", true) || line.startsWith("https://", true)) &&
+                    !geoBlocked && !isTokenizedOrTemporary(line)) {
                     out.add(
                         ParsedChannel(
                             n,
@@ -1246,11 +1253,20 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 tvgId = null
                 logoUrl = null
                 category = null
+                geoBlocked = false
                 headers.clear()
                 detectedCountry = fallbackCountry
             }
         }
         return out
+    }
+
+    private fun isTokenizedOrTemporary(url: String): Boolean {
+        val query = runCatching { Uri.parse(url).encodedQuery.orEmpty() }.getOrDefault("")
+        val temporaryKeys = setOf("token", "ticket", "hdnts", "jwt", "signature", "sig", "auth")
+        return query.split("&").any { part ->
+            part.substringBefore("=").substringBefore("%3D").lowercase(Locale.ROOT) in temporaryKeys
+        }
     }
 
     private fun normalizeCountry(value: String): String {
