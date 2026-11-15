@@ -80,6 +80,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
         .setReadTimeoutMs(20000)
         .setAllowCrossProtocolRedirects(true)
     private val mediaDataSourceFactory = DefaultDataSource.Factory(activity, httpDataSourceFactory)
+    @OptIn(UnstableApi::class)
     private val trackSelector = DefaultTrackSelector(activity).apply {
         setParameters(
             buildUponParameters()
@@ -1077,7 +1078,10 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
             // unrelated countries into the four-country TV catalogue.
             prefs.edit().remove("playlists").apply()
             val sources = Config.PLAYLISTS.distinctBy { it.second }
-            val pool = Executors.newFixedThreadPool(4)
+            // 12 country/region sources are downloaded in parallel. Six workers
+            // and a longer batch timeout prevent the last country playlists from
+            // being cancelled before their turn on slower Android TV connections.
+            val pool = Executors.newFixedThreadPool(6)
             try {
                 val tasks = sources.map { source ->
                     java.util.concurrent.Callable {
@@ -1085,7 +1089,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                         source.first to (body?.let { parseM3u(it, source.first) } ?: emptyList())
                     }
                 }
-                val results = pool.invokeAll(tasks, 28, java.util.concurrent.TimeUnit.SECONDS)
+                val results = pool.invokeAll(tasks, 45, java.util.concurrent.TimeUnit.SECONDS)
                 for (future in results) {
                     if (future.isCancelled) continue
                     try {
