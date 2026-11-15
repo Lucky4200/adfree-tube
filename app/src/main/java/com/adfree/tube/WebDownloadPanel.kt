@@ -73,6 +73,7 @@ class WebDownloadPanel(private val activity: Activity) {
     @Volatile private var mediaMime = ""
     @Volatile private var width = 0
     @Volatile private var height = 0
+    @Volatile private var processing = false
     private val handler = Handler(Looper.getMainLooper())
     private val scanTask = object : Runnable {
         override fun run() {
@@ -148,12 +149,15 @@ class WebDownloadPanel(private val activity: Activity) {
 
     private fun isAdaptiveStream(value: String): Boolean =
         extension(value) in setOf("m3u8", "mpd") ||
+            mediaMime.contains("mpegurl", ignoreCase = true) ||
+            mediaMime.contains("dash+xml", ignoreCase = true) ||
             value.contains("mpegurl", ignoreCase = true) ||
             value.contains("dash+xml", ignoreCase = true)
 
     private val bridge = object {
         @JavascriptInterface
         fun onMedia(url: String?, title: String?, w: Int, h: Int, mime: String?, page: String?) {
+            if (processing) return
             val candidate = url?.takeIf { isHttpUrl(it) } ?: return
             activity.runOnUiThread {
                 mediaUrl = candidate
@@ -170,6 +174,7 @@ class WebDownloadPanel(private val activity: Activity) {
 
         @JavascriptInterface
         fun onUnsupported(title: String?, page: String?, source: String?) {
+            if (processing) return
             activity.runOnUiThread {
                 pageUrl = page?.takeIf { isHttpUrl(it) } ?: web?.url.orEmpty()
                 mediaUrl = source?.takeIf { isHttpUrl(it) }.orEmpty()
@@ -183,6 +188,7 @@ class WebDownloadPanel(private val activity: Activity) {
 
         @JavascriptInterface
         fun onFrame(url: String?, title: String?) {
+            if (processing) return
             val frameUrl = url?.takeIf { isHttpUrl(it) } ?: return
             activity.runOnUiThread {
                 pageUrl = frameUrl
@@ -197,6 +203,7 @@ class WebDownloadPanel(private val activity: Activity) {
 
         @JavascriptInterface
         fun onNoMedia() {
+            if (processing) return
             activity.runOnUiThread {
                 mediaUrl = ""
                 pageUrl = ""
@@ -242,7 +249,7 @@ class WebDownloadPanel(private val activity: Activity) {
 
     private fun scan() {
         val target = web ?: return
-        if (!target.isAttachedToWindow) return
+        if (processing || !target.isAttachedToWindow) return
         target.evaluateJavascript(
             """(function(){
               try {
@@ -279,6 +286,8 @@ class WebDownloadPanel(private val activity: Activity) {
             Toast.makeText(activity, "Player link abhi detect nahi hua. Video dobara play karein.", Toast.LENGTH_LONG).show()
             return
         }
+        if (processing) return
+        processing = true
 
         progress.visibility = View.VISIBLE
         progress.isIndeterminate = true
@@ -302,6 +311,7 @@ class WebDownloadPanel(private val activity: Activity) {
                 if (found != null) {
                     showFormatOptions(found!!, foundAt)
                 } else {
+                    processing = false
                     showDirectFallback(directSource, lastError)
                 }
             }
@@ -343,11 +353,13 @@ class WebDownloadPanel(private val activity: Activity) {
                 }
                 startYtDlpDownload(sourceUrl, selector, audioOnly, selected)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancel") { _, _ -> processing = false }
+            .setOnCancelListener { processing = false }
             .show()
     }
 
     private fun startYtDlpDownload(sourceUrl: String, selector: String, audioOnly: Boolean, label: String) {
+        processing = true
         heading.text = "DOWNLOAD IN PROGRESS"
         detail.text = "Starting: $label"
         progress.visibility = View.VISIBLE
@@ -363,6 +375,7 @@ class WebDownloadPanel(private val activity: Activity) {
                     }
                 }
                 activity.runOnUiThread {
+                    processing = false
                     progress.visibility = View.GONE
                     heading.text = "DOWNLOAD COMPLETE"
                     detail.text = "✓ $result • Saved to Gallery / Music"
@@ -370,6 +383,7 @@ class WebDownloadPanel(private val activity: Activity) {
                 }
             } catch (e: Exception) {
                 activity.runOnUiThread {
+                    processing = false
                     progress.visibility = View.GONE
                     heading.text = "DOWNLOAD FAILED"
                     detail.text = e.message?.take(240) ?: "Download failed"
@@ -387,6 +401,7 @@ class WebDownloadPanel(private val activity: Activity) {
                 .setTitle("Direct media available")
                 .setMessage("This website gives one direct file, so only its original quality is available here. The file will be saved in Gallery / Music.")
                 .setPositiveButton("Download original") { _, _ ->
+                    processing = true
                     try {
                         DownloadStore.enqueue(activity, source, mediaTitle, mediaMime.ifBlank {
                             if (isAudio) "audio/$ext" else "video/$ext"
@@ -395,6 +410,7 @@ class WebDownloadPanel(private val activity: Activity) {
                         detail.text = "Original file is downloading. Check the Downloads tab."
                         Toast.makeText(activity, "Download started", Toast.LENGTH_LONG).show()
                     } catch (e: Exception) {
+                        processing = false
                         detail.text = e.message ?: "Download failed"
                     }
                 }
@@ -407,10 +423,14 @@ class WebDownloadPanel(private val activity: Activity) {
                 .setTitle("Streaming formats")
                 .setMessage("The site exposes an HLS/DASH stream. Choose an export format. Protected / DRM streams are not bypassed.")
                 .setItems(arrayOf("Video • MP4", "Audio only • M4A")) { _, which ->
+                    processing = true
                     Media3Export.start(activity, source, audioOnly = which == 1) { status ->
                         activity.runOnUiThread {
                             detail.text = status
-                            if (status.startsWith("Complete")) heading.text = "DOWNLOAD COMPLETE"
+                            if (status.startsWith("Complete") || status.startsWith("Export failed")) {
+                                processing = false
+                                if (status.startsWith("Complete")) heading.text = "DOWNLOAD COMPLETE"
+                            }
                         }
                     }
                 }
