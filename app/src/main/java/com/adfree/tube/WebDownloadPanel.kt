@@ -9,6 +9,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
@@ -58,6 +60,8 @@ class WebDownloadPanel(private val activity: Activity) {
     private var mediaTitle = "Video"
     private var width = 0
     private var height = 0
+    private val handler = Handler(Looper.getMainLooper())
+    private val scanTask = object : Runnable { override fun run() { scan() } }
 
     val view: View = LinearLayout(activity).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -106,8 +110,11 @@ class WebDownloadPanel(private val activity: Activity) {
     fun attach(view: android.webkit.WebView) {
         web = view
         view.addJavascriptInterface(bridge, "AdFreeTubeMedia")
-        view.postDelayed({ scan() }, 1200)
+        resume()
     }
+
+    fun resume() { handler.removeCallbacks(scanTask); handler.postDelayed(scanTask, 1200) }
+    fun pause() { handler.removeCallbacks(scanTask) }
 
     private fun scan() {
         val target = web ?: return
@@ -123,7 +130,7 @@ class WebDownloadPanel(private val activity: Activity) {
               } catch(e) {}
             })();""", null
         )
-        target.postDelayed({ scan() }, 2500)
+        handler.postDelayed(scanTask, 2500)
     }
 
     private fun chooseDownload() {
