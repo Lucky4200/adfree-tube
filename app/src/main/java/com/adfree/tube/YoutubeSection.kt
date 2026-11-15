@@ -67,6 +67,12 @@ class YoutubeSection(private val activity: Activity) : Section {
             textSize = 10f
             setTextColor(Color.rgb(145, 164, 188))
         })
+        titleBlock.addView(TextView(activity).apply {
+            text = "Created by Aqib Bahadur"
+            textSize = 9f
+            setTextColor(Color.rgb(112, 133, 157))
+            letterSpacing = 0.015f
+        })
         toolbar.addView(titleBlock, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
         val home = makeAction("⌂", "Home")
