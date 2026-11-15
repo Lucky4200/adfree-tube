@@ -14,13 +14,10 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import android.text.method.HideReturnsTransformationMethod
-import android.text.method.PasswordTransformationMethod
 import androidx.media3.common.util.UnstableApi
 import com.yausername.youtubedl_android.mapper.VideoInfo
 import org.json.JSONObject
@@ -31,7 +28,24 @@ import kotlin.concurrent.thread
 
 class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-    private val input = EditText(activity)
+    private var pendingUrl = ""
+    private val clipboardCard = TextView(activity).apply {
+        text = "📋 TAP TO AUTO-PASTE & DETECT\nCopy a video link in YouTube, Facebook, Instagram or TikTok, then tap here."
+        textSize = 11f
+        setTextColor(Color.WHITE)
+        gravity = android.view.Gravity.CENTER
+        maxLines = 3
+        setPadding(dp(12), dp(12), dp(12), dp(12))
+        background = GradientDrawable().apply {
+            setColor(Color.rgb(23, 41, 67))
+            cornerRadius = dp(12).toFloat()
+            setStroke(dp(1), Color.rgb(75, 113, 145))
+        }
+        isClickable = true
+        isFocusable = true
+        contentDescription = "Paste copied video link from clipboard and detect it"
+        setOnClickListener { pasteClipboardAndDetect() }
+    }
     private val info = TextView(activity)
     private val active = LinearLayout(activity)
     private val scanProgress = ProgressBar(activity).apply { isIndeterminate = true; visibility = View.GONE }
@@ -39,7 +53,6 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private var mediaUrl = ""
     private var mime = ""
     private var detectedInfo: VideoInfo? = null
-    private var linkVisible = false
     private val handler = Handler(Looper.getMainLooper())
     override val view: View
     private val task = object : Runnable {
@@ -60,42 +73,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
             platforms.addView(TextView(activity).apply { text=item; textSize=8f; gravity=android.view.Gravity.CENTER; setTextColor(Color.WHITE); setPadding(dp(3),dp(7),dp(3),dp(7)); background=GradientDrawable().apply { setColor(Color.rgb(24,43,67)); cornerRadius=dp(9).toFloat(); setStroke(dp(1),Color.rgb(55,82,112)) } }, LinearLayout.LayoutParams(0,dp(32),1f).apply { marginStart=dp(2); marginEnd=dp(2) })
         }
         root.addView(platforms,params(0,8))
-        input.hint="Copied link will appear here automatically"
-        input.setSingleLine(true); input.textSize=12f; input.setTextColor(Color.WHITE)
-        input.transformationMethod = PasswordTransformationMethod.getInstance()
-        input.setHintTextColor(Color.GRAY); input.setPadding(dp(10),dp(10),dp(8),dp(10))
-        input.background=rounded()
-        val scanRow = LinearLayout(activity).apply { orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER_VERTICAL }
-        scanRow.addView(input, LinearLayout.LayoutParams(0,dp(50),1f))
-        scanRow.addView(Button(activity).apply {
-            text = "◉"; textSize = 16f; isAllCaps = false; setTextColor(Color.WHITE)
-            background = rounded()
-            contentDescription = "Show or hide pasted link"
-            setOnClickListener {
-                linkVisible = !linkVisible
-                input.transformationMethod = if (linkVisible) HideReturnsTransformationMethod.getInstance() else PasswordTransformationMethod.getInstance()
-                input.setSelection(input.text.length)
-            }
-        }, LinearLayout.LayoutParams(dp(42), dp(48)).apply { marginStart = dp(4) })
-        scanRow.addView(Button(activity).apply {
-            text = "Copy"; textSize = 9f; isAllCaps = false; setTextColor(Color.WHITE)
-            background = rounded()
-            setOnClickListener {
-                val value = input.text.toString().trim()
-                if (value.isNotBlank()) {
-                    val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Video link", value))
-                    Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show()
-                } else Toast.makeText(activity, "Pehle link paste karein", Toast.LENGTH_SHORT).show()
-            }
-        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(4) })
-        scanRow.addView(Button(activity).apply {
-            text="↻"; textSize=26f; isAllCaps=false; setTextColor(Color.WHITE)
-            background=GradientDrawable().apply { shape=GradientDrawable.OVAL; setColor(Color.rgb(20,145,101)); setStroke(dp(2),Color.rgb(105,235,190)) }
-            contentDescription="Paste copied link and scan"
-            setOnClickListener { pasteClipboardAndDetect() }
-        },LinearLayout.LayoutParams(dp(50),dp(50)).apply { marginStart=dp(5) })
-        root.addView(scanRow,params(8,5))
+        root.addView(clipboardCard, params(8, 5))
         val scanStatusRow=LinearLayout(activity).apply {
             orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER_VERTICAL
             addView(scanProgress,LinearLayout.LayoutParams(dp(18),dp(18)))
@@ -120,20 +98,26 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private fun pasteClipboardAndDetect() {
         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val copied = runCatching {
-            if (clipboard.hasPrimaryClip() && clipboard.primaryClip!!.itemCount > 0) clipboard.primaryClip!!.getItemAt(0).coerceToText(activity)?.toString()?.trim().orEmpty() else ""
+            if (clipboard.hasPrimaryClip() && clipboard.primaryClip!!.itemCount > 0)
+                clipboard.primaryClip!!.getItemAt(0).coerceToText(activity)?.toString()?.trim().orEmpty()
+            else ""
         }.getOrDefault("")
-        val link = copied.lineSequence().firstOrNull { it.startsWith("https://", true) || it.startsWith("http://", true) || it.startsWith("www.", true) }.orEmpty()
+        val link = copied.lineSequence().firstOrNull {
+            it.startsWith("https://", true) || it.startsWith("http://", true) || it.startsWith("www.", true)
+        }.orEmpty()
         if (link.isBlank()) {
-            Toast.makeText(activity,"Pehle video link Copy karein, phir gol Scan button dabayein.",Toast.LENGTH_LONG).show()
-            scanStatus.text="Clipboard mein link nahi mila"
+            Toast.makeText(activity, "Pehle doosri app mein video link Copy karein, phir yahan tap karein.", Toast.LENGTH_LONG).show()
+            scanStatus.text = "Clipboard mein link nahi mila"
+            clipboardCard.text = "📋 LINK NOT FOUND\nCopy a video link, then tap here again."
             return
         }
-        input.setText(link)
+        pendingUrl = link
+        clipboardCard.text = "✓ LINK COPIED AUTOMATICALLY\n" + link.take(150)
         detect()
     }
 
     private fun detect() {
-        val raw = input.text.toString().trim()
+        val raw = pendingUrl.trim()
         val normalized = if (raw.startsWith("www.", true) || raw.startsWith("youtu.be/", true) || raw.startsWith("youtube.com/", true)) "https://" + raw else raw
         val u = runCatching { Uri.parse(normalized) }.getOrNull()
         if (u == null || u.scheme !in listOf("http", "https") || u.host.isNullOrBlank()) {
@@ -202,9 +186,9 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         }
         val extracted = detectedInfo
         if (extracted != null) {
-            val heights = extracted.formats.orEmpty().map { it.height }.filter { it > 0 }.distinct().sortedDescending()
-            val options = mutableListOf("Best available quality", "MP4 compatible")
-            options.addAll(heights.map { it.toString() + "p" })
+            val heights = extracted.formats.orEmpty().map { it.height }.filter { it in 1..4320 }.distinct().sortedDescending()
+            val options = mutableListOf("Best available quality • up to 8K", "MP4 compatible")
+            options.addAll(heights.map { if (it == 4320) "4320p • 8K" else it.toString() + "p" })
             options.add("Audio only • MP3")
             AlertDialog.Builder(activity).setTitle(extracted.title ?: "Choose quality")
                 .setItems(options.toTypedArray()) { _, which ->
@@ -213,9 +197,12 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
                     val selector = when {
                         audioOnly -> "bestaudio/best"
                         selected == "MP4 compatible" -> "best[ext=mp4]/best"
-                        selected == "Best available quality" -> "bv*+ba/b"
+                        selected == "Best available quality • up to 8K" ->
+                            "bestvideo[height<=4320]+bestaudio/best[height<=4320]"
+                        selected == "MP4 compatible" ->
+                            "bestvideo[ext=mp4][height<=4320]+bestaudio[ext=m4a]/best[ext=mp4][height<=4320]/best[height<=4320]"
                         else -> {
-                            val height = selected.removeSuffix("p").toIntOrNull() ?: 720
+                            val height = selected.substringBefore("p").toIntOrNull() ?: 720
                             "bestvideo[height<=" + height + "]+bestaudio/best[height<=" + height + "]"
                         }
                     }
