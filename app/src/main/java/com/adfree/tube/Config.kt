@@ -36,13 +36,15 @@ object Config {
     )
 
     // Official service links only; paid channels still require a valid subscription.
+    // Official broadcaster portals for the same four supported countries.
+    // These open the broadcaster's own website; they are not injected as direct stream URLs.
     val OFFICIAL_SERVICES = listOf(
-        Pair("ARY News Live (Free)", "https://live.arynews.tv/"),
-        Pair("Al Jazeera Live (Free)", "https://www.aljazeera.com/video/live/"),
-        Pair("PCB Live (Free in Pakistan when offered)", "https://live.pcb.com.pk/"),
-        Pair("Sling Freestream (Free, region-limited)", "https://www.sling.com/freestream/international"),
-        Pair("Sony LIV (official; subscription content)", "https://www.sonyliv.com/"),
-        Pair("AVT Khyber (official)", "https://avtkhyber.tv/")
+        Pair("Pakistan • Ministry / PTV News Live", "https://moib.gov.pk/LiveStream"),
+        Pair("Pakistan • ARY News Live", "https://live.arynews.tv/pk/"),
+        Pair("Pakistan • PTV Sports Live", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Pair("India • Prasar Bharati / DD Channels", "https://prasarbharati.gov.in/en/dd-channels/"),
+        Pair("Saudi Arabia • Aloula / Saudi Broadcasting Authority", "https://aloula.sba.sa/"),
+        Pair("Bangladesh • BTV, BTV News, BTV Chattogram, Sangsad", "https://btvlive.gov.bd/")
     )
 
     // Ad / tracker servers jo block hote hain
