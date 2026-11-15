@@ -48,6 +48,11 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         root.addView(label("Video ya audio link paste karein aur Detect Link dabayein.",11).apply {
             setTextColor(Color.rgb(145,164,188))
         },params(5,10))
+        val platforms = LinearLayout(activity).apply { orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER }
+        listOf("f  Facebook","◎  Instagram","♪  TikTok","▶  YouTube","X").forEach { item ->
+            platforms.addView(TextView(activity).apply { text=item; textSize=8f; gravity=android.view.Gravity.CENTER; setTextColor(Color.WHITE); setPadding(dp(3),dp(7),dp(3),dp(7)); background=GradientDrawable().apply { setColor(Color.rgb(24,43,67)); cornerRadius=dp(9).toFloat(); setStroke(dp(1),Color.rgb(55,82,112)) } }, LinearLayout.LayoutParams(0,dp(32),1f).apply { marginStart=dp(2); marginEnd=dp(2) })
+        }
+        root.addView(platforms,params(0,8))
         input.hint="Copied link will appear here automatically"
         input.setSingleLine(true); input.textSize=12f; input.setTextColor(Color.WHITE)
         input.setHintTextColor(Color.GRAY); input.setPadding(dp(10),dp(10),dp(8),dp(10))
