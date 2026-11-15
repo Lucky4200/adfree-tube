@@ -43,8 +43,30 @@ object Config {
     )
 
     // Official service links only; paid channels still require a valid subscription.
-    // Official broadcaster portals for the same four supported countries.
-    // These open the broadcaster's own website; they are not injected as direct stream URLs.
+    // These entries are opened inside AdFree Tube's own TV player/WebView.
+    val OFFICIAL_SERVICES = listOf(
+        Pair("Pakistan • PTV News Live", "https://moib.gov.pk/LiveStream"),
+        Pair("Pakistan • ARY News Live", "https://live.arynews.tv/pk/"),
+        Pair("Pakistan • AVT Khyber official live", "https://avtkhyber.tv/khyber-tv-live-streaming/"),
+        Pair("Pakistan • PTV Sports Live", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Pair("India • Prasar Bharati Live TV / DD", "https://prasarbharati.gov.in/en/live-tv/"),
+        Pair("India • WAVES official OTT", "https://prasarbharati.gov.in/en/waves/"),
+        Pair("India • Animal Planet HD English (JioTV; subscription/sign-in may be required)", "https://www.jiotv.com/live-channel/animal-planet-hd-world/286/just-animals/251004286016"),
+        Pair("Saudi Arabia • Aloula / Saudi Broadcasting Authority", "https://aloula.sba.sa/"),
+        Pair("Bangladesh • BTV, BTV News, BTV Chattogram, Sangsad", "https://btvlive.gov.bd/")
+    )
+
+    // Official portals are also inserted into the country lists as in-app web-player
+    // fallbacks. These are broadcaster pages, not extracted/private stream URLs.
+    val OFFICIAL_CHANNELS = listOf(
+        Triple("PTV News • Official", "PK", "https://moib.gov.pk/LiveStream"),
+        Triple("ARY News • Official", "PK", "https://live.arynews.tv/pk/"),
+        Triple("PTV Sports • Official", "PK", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Triple("Prasar Bharati Live TV • Official", "IN", "https://prasarbharati.gov.in/en/live-tv/"),
+        Triple("WAVES • Official", "IN", "https://prasarbharati.gov.in/en/waves/"),
+        Triple("BTV Live • Official", "BD", "https://btvlive.gov.bd/"),
+        Triple("Aloula • Official", "SA", "https://aloula.sba.sa/")
+    )
     val OFFICIAL_SERVICES = listOf(
         Pair("Pakistan • Ministry / PTV News Live", "https://moib.gov.pk/LiveStream"),
         Pair("Pakistan • ARY News Live", "https://live.arynews.tv/pk/"),
