@@ -43,7 +43,11 @@ object DownloadStore {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
-            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, name)
+            .setDestinationInExternalPublicDir(
+                if (mimeType?.startsWith("audio/") == true || ext in setOf("mp3", "m4a", "aac", "wav", "ogg")) Environment.DIRECTORY_MUSIC + "/AdFree Tube"
+                else Environment.DIRECTORY_MOVIES + "/AdFree Tube",
+                name
+            )
         val id = (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val ids = prefs.getStringSet(KEY_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
