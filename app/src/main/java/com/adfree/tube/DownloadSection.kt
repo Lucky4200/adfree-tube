@@ -3,6 +3,8 @@ package com.adfree.tube
 import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -104,6 +106,38 @@ class DownloadSection(private val activity: Activity) : Section {
                 }
                 row.addView(label("✓  " + name, 13, true))
                 row.addView(label("Completed • " + (file.length() / 1024L) + " KB • yt-dlp", 11).apply {
+                    setTextColor(Color.rgb(124,245,197))
+                }, params(4,0))
+                list.addView(row, params(0,8))
+            }
+        }
+        val publishedItems = activity.getSharedPreferences("adfree_tube_ytdlp_exports", Context.MODE_PRIVATE)
+            .getStringSet("published_media", emptySet()).orEmpty().sortedDescending()
+        publishedItems.forEach { entry ->
+            val split = entry.split("|", limit = 2)
+            if (split.size == 2) {
+                count++
+                val name = split[0]
+                val mediaUri = Uri.parse(split[1])
+                val row = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = rounded()
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        val ext = name.substringAfterLast(".", "").lowercase()
+                        val type = if (ext in setOf("mp3", "m4a", "aac", "wav", "ogg", "opus", "flac")) "audio/*" else "video/*"
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(mediaUri, type)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        runCatching { activity.startActivity(intent) }
+                            .onFailure { android.widget.Toast.makeText(activity, "Is media ko open karne ke liye compatible app nahi mili.", android.widget.Toast.LENGTH_LONG).show() }
+                    }
+                }
+                row.addView(label("▶  " + name, 13, true))
+                row.addView(label("Saved in Gallery / Music • Tap to open", 11).apply {
                     setTextColor(Color.rgb(124,245,197))
                 }, params(4,0))
                 list.addView(row, params(0,8))
