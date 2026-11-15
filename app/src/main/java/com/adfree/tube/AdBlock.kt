@@ -75,9 +75,11 @@ object AdBlock {
     var selectors = [
       '.ytp-ad-skip-button',
       '.ytp-ad-skip-button-modern',
+      '.ytp-ad-skip-button-container button',
       '.ytp-skip-ad-button',
       'button[aria-label]',
-      '.ytp-ad-overlay-close-button'
+      '.ytp-ad-overlay-close-button',
+      '.ytp-ad-overlay-close-button button'
     ];
     try {
       for (var i = 0; i < selectors.length; i++) {
@@ -89,7 +91,7 @@ object AdBlock {
           var label = ((el.getAttribute('aria-label') || '') + ' ' +
                        (el.innerText || el.textContent || '')).toLowerCase();
           var isSkip = label.indexOf('skip') >= 0 &&
-                       label.indexOf('ad') >= 0;
+                       (label.indexOf('ad') >= 0 || (el.className || '').toString().toLowerCase().indexOf('skip-ad') >= 0);
           if (isSkip && rect.width > 0 && rect.height > 0 &&
               style.display !== 'none' && style.visibility !== 'hidden' &&
               !el.disabled && el.getAttribute('aria-disabled') !== 'true') {
@@ -106,6 +108,7 @@ object AdBlock {
   }
 
   function trySkip() { scan(document); }
+  try { document.addEventListener('yt-navigate-finish', trySkip, true); } catch(e) {}
   trySkip();
   try {
     new MutationObserver(trySkip).observe(document.documentElement || document, {

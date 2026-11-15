@@ -40,6 +40,10 @@ dependencies {
     implementation("androidx.media3:media3-transformer:1.3.1")
     implementation("androidx.media3:media3-effect:1.3.1")
 
+    // On-device yt-dlp / Python / QuickJS extractor and FFmpeg post-processing.
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
+
     // Brave native engine is used on Android 8.0+; Android 7.1 uses the built-in fallback blocker.
     implementation("io.github.mlm-games:adblock:0.1.3")
 }

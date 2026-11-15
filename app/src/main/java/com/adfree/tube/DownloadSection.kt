@@ -91,6 +91,24 @@ class DownloadSection(private val activity: Activity) : Section {
                 list.addView(row, params(0,8))
             }
         }
+        val ytDir = YtDlpEngine.downloadDirectory(activity)
+        val ytPrefs = activity.getSharedPreferences("adfree_tube_ytdlp_exports", Context.MODE_PRIVATE)
+        ytPrefs.getStringSet("files", emptySet()).orEmpty().sortedDescending().forEach { name ->
+            val file = File(ytDir, name)
+            if (file.exists()) {
+                count++
+                val row = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = rounded()
+                }
+                row.addView(label("✓  " + name, 13, true))
+                row.addView(label("Completed • " + (file.length() / 1024L) + " KB • yt-dlp", 11).apply {
+                    setTextColor(Color.rgb(124,245,197))
+                }, params(4,0))
+                list.addView(row, params(0,8))
+            }
+        }
         if (count == 0) list.addView(label("Abhi koi download nahi hai.", 12).apply {
             setTextColor(Color.rgb(145,164,188))
         })

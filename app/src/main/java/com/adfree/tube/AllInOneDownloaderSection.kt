@@ -20,6 +20,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.media3.common.util.UnstableApi
+import com.yausername.youtubedl_android.mapper.VideoInfo
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.net.HttpURLConnection
@@ -35,6 +36,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private val scanStatus = TextView(activity).apply { text = "Ready to scan"; textSize = 11f; setTextColor(Color.rgb(145,164,188)) }
     private var mediaUrl = ""
     private var mime = ""
+    private var detectedInfo: VideoInfo? = null
     private val handler = Handler(Looper.getMainLooper())
     override val view: View
     private val task = object : Runnable {
@@ -106,76 +108,61 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
 
     private fun detect() {
         val raw = input.text.toString().trim()
-        val normalized = if (raw.startsWith("www.", true) || raw.startsWith("youtu.be/", true) || raw.startsWith("youtube.com/", true)) "https://$raw" else raw
+        val normalized = if (raw.startsWith("www.", true) || raw.startsWith("youtu.be/", true) || raw.startsWith("youtube.com/", true)) "https://" + raw else raw
         val u = runCatching { Uri.parse(normalized) }.getOrNull()
         if (u == null || u.scheme !in listOf("http", "https") || u.host.isNullOrBlank()) {
             info.text = "Valid http/https link paste karein."
             return
         }
-        mediaUrl = ""; mime = ""; info.text = "Link detect ho raha hai..."
+        mediaUrl = ""; mime = ""; detectedInfo = null
+        info.text = "Website se video aur available formats scan ho rahe hain..."
         scanProgress.visibility = View.VISIBLE
-        scanStatus.text = "Scanning link..."
+        scanStatus.text = "Extractor starting..."
         thread {
             try {
-                val host = u.host.orEmpty().lowercase().removePrefix("www.")
-                val isYouTube = host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com")
-                if (isYouTube) {
-                    val videoId = when {
-                        host == "youtu.be" -> u.pathSegments.firstOrNull().orEmpty()
-                        u.path == "/watch" -> u.getQueryParameter("v").orEmpty()
-                        u.pathSegments.firstOrNull() in listOf("shorts", "embed", "live") -> u.pathSegments.getOrNull(1).orEmpty()
-                        else -> ""
-                    }
-                    var title = ""
-                    if (videoId.isNotBlank()) runCatching {
-                        val endpoint = "https://www.youtube.com/oembed?url=" + URLEncoder.encode(normalized, "UTF-8") + "&format=json"
-                        val c = URL(endpoint).openConnection() as HttpURLConnection
-                        c.connectTimeout = 8000; c.readTimeout = 8000
-                        c.setRequestProperty("User-Agent", "Mozilla/5.0")
-                        c.inputStream.bufferedReader().use { title = JSONObject(it.readText()).optString("title") }
-                        c.disconnect()
-                    }
-                    activity.runOnUiThread {
-                        info.text = if (videoId.isBlank()) "YouTube link pehchan liya, lekin video ID nahi mili." else "YouTube video detect ho gayi ✓" + (if (title.isNotBlank()) "\nTitle: $title" else "") + "\n\nYeh YouTube page-link hai, direct MP4 file nahi. Is direct downloader se video file extract nahi ho sakti. YouTube ka official Download option use karein."
-                    }
-                    return@thread
+                val video = YtDlpEngine.extract(normalized)
+                val heights = video.formats.orEmpty().map { it.height }.filter { it > 0 }.distinct().sortedDescending()
+                activity.runOnUiThread {
+                    detectedInfo = video
+                    mediaUrl = normalized
+                    mime = "extractor"
+                    scanProgress.visibility = View.GONE
+                    scanStatus.text = "Video detected • " + video.formats.orEmpty().size + " formats"
+                    val title = video.title ?: "Media detected"
+                    val creator = if (video.uploader.isNullOrBlank()) "" else "\nBy: " + video.uploader
+                    val duration = if (video.duration > 0) "\nDuration: " + (video.duration / 60) + "m " + (video.duration % 60) + "s" else ""
+                    val quality = if (heights.isNotEmpty()) "\nAvailable: " + heights.joinToString(", ") { it.toString() + "p" } else "\nAvailable formats: " + video.formats.orEmpty().size
+                    info.text = "✓ " + title + creator + duration + quality + "\n\nStart Download dabayein aur quality select karein."
                 }
-                var type = ""; var finalUrl = normalized; var code = -1
-                var con: HttpURLConnection? = null
+            } catch (extractError: Exception) {
                 try {
-                    con = URL(normalized).openConnection() as HttpURLConnection
-                    con.requestMethod = "HEAD"; con.connectTimeout = 10000; con.readTimeout = 10000
-                    con.instanceFollowRedirects = true; con.setRequestProperty("User-Agent", "Mozilla/5.0")
-                    code = con.responseCode; type = con.contentType?.substringBefore(";")?.lowercase().orEmpty(); finalUrl = con.url.toString()
-                } finally { con?.disconnect() }
-                if (code >= 400 || type.isBlank() || type == "application/octet-stream" || type == "text/html") {
-                    var get: HttpURLConnection? = null
+                    var connection: HttpURLConnection? = null
+                    val finalUrl: String
+                    val type: String
                     try {
-                        get = URL(finalUrl).openConnection() as HttpURLConnection
-                        get.requestMethod = "GET"; get.connectTimeout = 10000; get.readTimeout = 10000
-                        get.instanceFollowRedirects = true; get.setRequestProperty("User-Agent", "Mozilla/5.0"); get.setRequestProperty("Range", "bytes=0-0")
-                        code = get.responseCode; type = get.contentType?.substringBefore(";")?.lowercase().orEmpty(); finalUrl = get.url.toString()
-                    } finally { get?.disconnect() }
-                }
-                val ext = Uri.parse(finalUrl).path.orEmpty().substringAfterLast(".", "").lowercase()
-                val adaptive = type.contains("mpegurl") || type.contains("dash+xml") || ext in setOf("m3u8", "mpd")
-                val direct = type.startsWith("video/") || type.startsWith("audio/") || ext in setOf("mp4","m4v","webm","mov","mp3","m4a","aac","wav","ogg")
-                val supportedMedia = direct || adaptive
-                if (supportedMedia) { mediaUrl = finalUrl; mime = type }
-                activity.runOnUiThread {
-                    scanProgress.visibility = View.GONE
-                    scanStatus.text = "Scan complete"
-                    info.text = when {
-                        adaptive -> "Adaptive stream detect ho gayi ✓\nType: $type\nMedia3 isay MP4 ya audio-only M4A mein export kar sakta hai (agar stream protected na ho)."
-                        direct -> "Direct media detect ho gayi ✓\nType: $type\nDownload ke liye ready."
-                        else -> "Link mil gaya, lekin website ne direct video/audio file expose nahi ki. Page-link se media extract nahi hua."
+                        connection = URL(normalized).openConnection() as HttpURLConnection
+                        connection.requestMethod = "HEAD"; connection.connectTimeout = 10000; connection.readTimeout = 10000
+                        connection.instanceFollowRedirects = true; connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        connection.responseCode
+                        finalUrl = connection.url.toString()
+                        type = connection.contentType?.substringBefore(";")?.lowercase().orEmpty()
+                    } finally { connection?.disconnect() }
+                    val ext = Uri.parse(finalUrl).path.orEmpty().substringAfterLast(".", "").lowercase()
+                    val direct = type.startsWith("video/") || type.startsWith("audio/") ||
+                        ext in setOf("mp4","m4v","webm","mov","mp3","m4a","aac","wav","ogg","m3u8","mpd")
+                    if (!direct) throw extractError
+                    activity.runOnUiThread {
+                        mediaUrl = finalUrl; mime = type; detectedInfo = null
+                        scanProgress.visibility = View.GONE
+                        scanStatus.text = "Direct media detected"
+                        info.text = "Direct media link detect ho gaya ✓\nType: " + type + "\nDownload ke liye ready."
                     }
-                }
-            } catch (e: Exception) {
-                activity.runOnUiThread {
-                    scanProgress.visibility = View.GONE
-                    scanStatus.text = "Scan failed"
-                    info.text = "Link detect nahi ho saka: " + (e.message ?: "Network error")
+                } catch (fallbackError: Exception) {
+                    activity.runOnUiThread {
+                        scanProgress.visibility = View.GONE
+                        scanStatus.text = "Link extraction failed"
+                        info.text = "Is website se media details nahi mil sakin.\n" + (extractError.message ?: "Extractor error")
+                    }
                 }
             }
         }
@@ -184,57 +171,88 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private fun startDownload() {
         val url = mediaUrl
         if (url.isBlank()) {
-            Toast.makeText(activity, "Pehle supported media link detect karein.", Toast.LENGTH_LONG).show()
+            Toast.makeText(activity, "Pehle link detect karein.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val extracted = detectedInfo
+        if (extracted != null) {
+            val heights = extracted.formats.orEmpty().map { it.height }.filter { it > 0 }.distinct().sortedDescending()
+            val options = mutableListOf("Best available quality", "MP4 compatible")
+            options.addAll(heights.map { it.toString() + "p" })
+            options.add("Audio only • MP3")
+            AlertDialog.Builder(activity).setTitle(extracted.title ?: "Choose quality")
+                .setItems(options.toTypedArray()) { _, which ->
+                    val selected = options[which]
+                    val audioOnly = selected.startsWith("Audio only")
+                    val selector = when {
+                        audioOnly -> "bestaudio/best"
+                        selected == "MP4 compatible" -> "best[ext=mp4]/best"
+                        selected == "Best available quality" -> "bv*+ba/b"
+                        else -> {
+                            val height = selected.removeSuffix("p").toIntOrNull() ?: 720
+                            "bestvideo[height<=" + height + "]+bestaudio/best[height<=" + height + "]"
+                        }
+                    }
+                    mediaUrl = ""
+                    scanProgress.visibility = View.VISIBLE
+                    scanStatus.text = "Download starting..."
+                    info.text = "Downloading: " + selected
+                    thread {
+                        try {
+                            val result = YtDlpEngine.download(activity, url, selector, audioOnly) { progress, eta, line ->
+                                activity.runOnUiThread {
+                                    scanStatus.text = "Downloading " + progress.toInt().coerceIn(0,100) + "% • ETA " + eta + "s"
+                                    if (line.isNotBlank()) info.text = line.takeLast(500)
+                                }
+                            }
+                            activity.runOnUiThread {
+                                scanProgress.visibility = View.GONE
+                                scanStatus.text = "Download complete"
+                                info.text = "✓ Download complete\n" + result
+                                refresh()
+                            }
+                        } catch (e: Exception) {
+                            activity.runOnUiThread {
+                                scanProgress.visibility = View.GONE
+                                scanStatus.text = "Download failed"
+                                info.text = "Download failed: " + (e.message ?: "Unknown error")
+                            }
+                        }
+                    }
+                }.setNegativeButton("Cancel", null).show()
             return
         }
         val ext = Uri.parse(url).path.orEmpty().substringAfterLast(".", "").lowercase()
         val adaptive = mime.contains("mpegurl") || mime.contains("dash+xml") || ext in setOf("m3u8", "mpd")
         val video = mime.startsWith("video/") || ext in setOf("mp4", "m4v", "webm", "mov")
         val audio = mime.startsWith("audio/") || ext in setOf("mp3", "m4a", "aac", "wav", "ogg")
-
         if (adaptive || video) {
-            val options = if (adaptive) {
-                arrayOf("Video • MP4 (best available quality)", "Audio only • M4A")
-            } else {
-                arrayOf("Video • original file", "Audio only • M4A")
-            }
-            AlertDialog.Builder(activity)
-                .setTitle("Download format")
-                .setItems(options) { _, which ->
-                    if (adaptive || which == 1) {
-                        Media3Export.start(activity, url, audioOnly = which == 1) { status ->
-                            scanStatus.text = status
-                            if (status.startsWith("Complete")) info.text = status
-                        }
-                        mediaUrl = ""
-                    } else {
-                        try {
-                            DownloadStore.enqueue(activity, url, "Media download", mime)
-                            info.text = "Download shuru ho gaya. Downloads tab mein status check karein."
-                            mediaUrl = ""
-                            refresh()
-                        } catch (e: Exception) {
-                            info.text = e.message ?: "Download start nahi hua."
-                        }
+            val options = if (adaptive) arrayOf("Video • MP4", "Audio only • M4A") else arrayOf("Video • original file", "Audio only • M4A")
+            AlertDialog.Builder(activity).setTitle("Download format").setItems(options) { _, which ->
+                if (adaptive || which == 1) {
+                    Media3Export.start(activity, url, audioOnly = which == 1) { status ->
+                        scanStatus.text = status
+                        if (status.startsWith("Complete")) info.text = status
                     }
+                    mediaUrl = ""
+                } else {
+                    try {
+                        DownloadStore.enqueue(activity, url, "Media download", mime)
+                        info.text = "Download shuru ho gaya. Downloads tab mein status check karein."
+                        mediaUrl = ""; refresh()
+                    } catch (e: Exception) { info.text = e.message ?: "Download start nahi hua." }
                 }
-                .setNegativeButton("Cancel", null)
-                .show()
+            }.setNegativeButton("Cancel", null).show()
             return
         }
-
         if (audio) {
             try {
                 DownloadStore.enqueue(activity, url, "Audio download", mime)
                 info.text = "Audio download shuru ho gaya. Downloads tab mein status check karein."
-                mediaUrl = ""
-                refresh()
-            } catch (e: Exception) {
-                info.text = e.message ?: "Download start nahi hua."
-            }
+                mediaUrl = ""; refresh()
+            } catch (e: Exception) { info.text = e.message ?: "Download start nahi hua." }
             return
         }
-
         info.text = "Is link ka downloadable media format identify nahi hua."
     }
     private fun refresh() {
