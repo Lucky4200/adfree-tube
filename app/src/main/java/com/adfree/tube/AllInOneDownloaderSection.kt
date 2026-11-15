@@ -19,6 +19,8 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import androidx.media3.common.util.UnstableApi
 import com.yausername.youtubedl_android.mapper.VideoInfo
 import org.json.JSONObject
@@ -37,6 +39,7 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
     private var mediaUrl = ""
     private var mime = ""
     private var detectedInfo: VideoInfo? = null
+    private var linkVisible = false
     private val handler = Handler(Looper.getMainLooper())
     override val view: View
     private val task = object : Runnable {
@@ -59,16 +62,39 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         root.addView(platforms,params(0,8))
         input.hint="Copied link will appear here automatically"
         input.setSingleLine(true); input.textSize=12f; input.setTextColor(Color.WHITE)
+        input.transformationMethod = PasswordTransformationMethod.getInstance()
         input.setHintTextColor(Color.GRAY); input.setPadding(dp(10),dp(10),dp(8),dp(10))
         input.background=rounded()
         val scanRow = LinearLayout(activity).apply { orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER_VERTICAL }
         scanRow.addView(input, LinearLayout.LayoutParams(0,dp(50),1f))
         scanRow.addView(Button(activity).apply {
+            text = "◉"; textSize = 16f; isAllCaps = false; setTextColor(Color.WHITE)
+            background = rounded()
+            contentDescription = "Show or hide pasted link"
+            setOnClickListener {
+                linkVisible = !linkVisible
+                input.transformationMethod = if (linkVisible) HideReturnsTransformationMethod.getInstance() else PasswordTransformationMethod.getInstance()
+                input.setSelection(input.text.length)
+            }
+        }, LinearLayout.LayoutParams(dp(42), dp(48)).apply { marginStart = dp(4) })
+        scanRow.addView(Button(activity).apply {
+            text = "Copy"; textSize = 9f; isAllCaps = false; setTextColor(Color.WHITE)
+            background = rounded()
+            setOnClickListener {
+                val value = input.text.toString().trim()
+                if (value.isNotBlank()) {
+                    val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Video link", value))
+                    Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(activity, "Pehle link paste karein", Toast.LENGTH_SHORT).show()
+            }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(4) })
+        scanRow.addView(Button(activity).apply {
             text="↻"; textSize=26f; isAllCaps=false; setTextColor(Color.WHITE)
             background=GradientDrawable().apply { shape=GradientDrawable.OVAL; setColor(Color.rgb(20,145,101)); setStroke(dp(2),Color.rgb(105,235,190)) }
             contentDescription="Paste copied link and scan"
             setOnClickListener { pasteClipboardAndDetect() }
-        },LinearLayout.LayoutParams(dp(56),dp(56)).apply { marginStart=dp(10) })
+        },LinearLayout.LayoutParams(dp(50),dp(50)).apply { marginStart=dp(5) })
         root.addView(scanRow,params(8,5))
         val scanStatusRow=LinearLayout(activity).apply {
             orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER_VERTICAL
