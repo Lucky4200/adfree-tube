@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 object YtDlpEngine {
     private const val PREFS = "adfree_tube_ytdlp_exports"
     private const val KEY_FILES = "files"
+    const val KEY_PUBLISHED = "published_media"
     private const val KEY_LAST_NIGHTLY_UPDATE = "last_ytdlp_nightly_update"
     private const val NIGHTLY_UPDATE_INTERVAL_MS = 24L * 60L * 60L * 1000L
 
@@ -117,6 +118,7 @@ object YtDlpEngine {
 
         val created = dir.listFiles()
             ?.filter { it.isFile && it.name !in before }
+            ?.filter { it.extension.lowercase() in setOf("mp4", "m4v", "webm", "mov", "mp3", "m4a", "aac", "wav", "ogg", "opus", "flac") }
             ?.map { it.name }
             .orEmpty()
 
@@ -126,7 +128,22 @@ object YtDlpEngine {
             saved.addAll(created)
             prefs.edit().putStringSet(KEY_FILES, saved).apply()
         }
-        return created.lastOrNull() ?: "Download completed. Check Downloads tab."
+
+        // Copy finished video/audio into Android's shared media library.
+        val published = mutableListOf<MediaPublisher.Published>()
+        created.forEach { name ->
+            val source = File(dir, name)
+            runCatching { MediaPublisher.publish(context, source) }
+                .onSuccess { published.add(it) }
+                .onFailure { onProgress(100f, 0L, "Download complete; Gallery copy failed: " + (it.message ?: "unknown error")) }
+        }
+        if (published.isNotEmpty()) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val entries = prefs.getStringSet(KEY_PUBLISHED, emptySet()).orEmpty().toMutableSet()
+            published.forEach { entries.add(it.name + "|" + it.uri) }
+            prefs.edit().putStringSet(KEY_PUBLISHED, entries).apply()
+        }
+        return published.lastOrNull()?.name ?: created.lastOrNull() ?: "Download completed. Check Downloads tab."
     }
 
     private fun buildDownloadRequest(
