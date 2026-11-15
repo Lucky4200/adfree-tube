@@ -17,6 +17,8 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import org.json.JSONObject
+import java.net.URLEncoder
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
@@ -67,33 +69,63 @@ class AllInOneDownloaderSection(private val activity: Activity) : Section {
         view=root
     }
     private fun detect() {
-        val raw=input.text.toString().trim()
-        val u=runCatching { Uri.parse(raw) }.getOrNull()
-        if(u==null || u.scheme !in listOf("http","https") || u.host.isNullOrBlank()) {
-            info.text="Valid http/https link paste karein."; return
+        val raw = input.text.toString().trim()
+        val normalized = if (raw.startsWith("www.", true) || raw.startsWith("youtu.be/", true) || raw.startsWith("youtube.com/", true)) "https://$raw" else raw
+        val u = runCatching { Uri.parse(normalized) }.getOrNull()
+        if (u == null || u.scheme !in listOf("http", "https") || u.host.isNullOrBlank()) {
+            info.text = "Valid http/https link paste karein."
+            return
         }
-        mediaUrl=""; mime=""; info.text="Server se link check ho raha hai..."
+        mediaUrl = ""; mime = ""; info.text = "Link detect ho raha hai..."
         thread {
-            var con:HttpURLConnection?=null
             try {
-                con=URL(raw).openConnection() as HttpURLConnection
-                con.requestMethod="HEAD"; con.connectTimeout=10000; con.readTimeout=10000
-                con.instanceFollowRedirects=true
-                con.setRequestProperty("User-Agent","Mozilla/5.0")
-                con.connect()
-                val type=con.contentType?.substringBefore(';')?.lowercase().orEmpty()
-                val finalUrl=con.url.toString()
-                val ext=Uri.parse(finalUrl).path.orEmpty().substringAfterLast('.',"").lowercase()
-                val direct=type.startsWith("video/") || type.startsWith("audio/") ||
-                    ext in setOf("mp4","m4v","webm","mov","mp3","m4a","aac","wav","ogg")
-                if(direct) { mediaUrl=finalUrl; mime=type }
-                activity.runOnUiThread {
-                    info.text=if(direct) "Direct media detected ✓\\nType: " + type + "\\nReady to download."
-                    else "Link open ho raha hai, lekin server ne direct video/audio file nahi batayi. Is page se media extract nahi hua."
+                val host = u.host.orEmpty().lowercase().removePrefix("www.")
+                val isYouTube = host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com")
+                if (isYouTube) {
+                    val videoId = when {
+                        host == "youtu.be" -> u.pathSegments.firstOrNull().orEmpty()
+                        u.path == "/watch" -> u.getQueryParameter("v").orEmpty()
+                        u.pathSegments.firstOrNull() in listOf("shorts", "embed", "live") -> u.pathSegments.getOrNull(1).orEmpty()
+                        else -> ""
+                    }
+                    var title = ""
+                    if (videoId.isNotBlank()) runCatching {
+                        val endpoint = "https://www.youtube.com/oembed?url=" + URLEncoder.encode(normalized, "UTF-8") + "&format=json"
+                        val c = URL(endpoint).openConnection() as HttpURLConnection
+                        c.connectTimeout = 8000; c.readTimeout = 8000
+                        c.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        c.inputStream.bufferedReader().use { title = JSONObject(it.readText()).optString("title") }
+                        c.disconnect()
+                    }
+                    activity.runOnUiThread {
+                        info.text = if (videoId.isBlank()) "YouTube link pehchan liya, lekin video ID nahi mili." else "YouTube video detect ho gayi ✓" + (if (title.isNotBlank()) "\nTitle: $title" else "") + "\n\nYeh YouTube page-link hai, direct MP4 file nahi. Is direct downloader se video file extract nahi ho sakti. YouTube ka official Download option use karein."
+                    }
+                    return@thread
                 }
-            } catch(e:Exception) {
-                activity.runOnUiThread { info.text="Link check fail: " + (e.message ?: "Network error") }
-            } finally { con?.disconnect() }
+                var type = ""; var finalUrl = normalized; var code = -1
+                var con: HttpURLConnection? = null
+                try {
+                    con = URL(normalized).openConnection() as HttpURLConnection
+                    con.requestMethod = "HEAD"; con.connectTimeout = 10000; con.readTimeout = 10000
+                    con.instanceFollowRedirects = true; con.setRequestProperty("User-Agent", "Mozilla/5.0")
+                    code = con.responseCode; type = con.contentType?.substringBefore(";")?.lowercase().orEmpty(); finalUrl = con.url.toString()
+                } finally { con?.disconnect() }
+                if (code >= 400 || type.isBlank() || type == "application/octet-stream" || type == "text/html") {
+                    var get: HttpURLConnection? = null
+                    try {
+                        get = URL(finalUrl).openConnection() as HttpURLConnection
+                        get.requestMethod = "GET"; get.connectTimeout = 10000; get.readTimeout = 10000
+                        get.instanceFollowRedirects = true; get.setRequestProperty("User-Agent", "Mozilla/5.0"); get.setRequestProperty("Range", "bytes=0-0")
+                        code = get.responseCode; type = get.contentType?.substringBefore(";")?.lowercase().orEmpty(); finalUrl = get.url.toString()
+                    } finally { get?.disconnect() }
+                }
+                val ext = Uri.parse(finalUrl).path.orEmpty().substringAfterLast(".", "").lowercase()
+                val direct = type.startsWith("video/") || type.startsWith("audio/") || ext in setOf("mp4","m4v","webm","mov","mp3","m4a","aac","wav","ogg")
+                if (direct) { mediaUrl = finalUrl; mime = type }
+                activity.runOnUiThread { info.text = if (direct) "Direct media detect ho gayi ✓\nType: $type\nDownload ke liye ready." else "Link mil gaya, lekin website ne direct video/audio file expose nahi ki. Page-link se media extract nahi hua." }
+            } catch (e: Exception) {
+                activity.runOnUiThread { info.text = "Link detect nahi ho saka: ${e.message ?: "Network error"}" }
+            }
         }
     }
     private fun startDownload() {
