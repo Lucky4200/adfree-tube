@@ -249,7 +249,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 bufferingTimeout?.let { uiHandler.removeCallbacks(it) }
                 bufferingTimeout = null
                 if (embeddedWebView?.visibility == View.VISIBLE) return
-                advanceToNextSource(error.errorCodeName + ": " + (error.message ?: "playback error"))
+                advanceToNextSource(error.message ?: "playback error")
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
