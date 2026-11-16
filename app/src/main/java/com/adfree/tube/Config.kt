@@ -45,23 +45,39 @@ object Config {
     // Official service links only; paid channels still require a valid subscription.
     // These entries are opened inside AdFree Tube's own TV player/WebView.
     val OFFICIAL_SERVICES = listOf(
-        Pair("Pakistan • PTV News Live", "https://moib.gov.pk/LiveStream"),
-        Pair("Pakistan • ARY News Live", "https://live.arynews.tv/pk/"),
+        Pair("Pakistan • PTV News official live page", "https://moib.gov.pk/LiveStream"),
+        Pair("Pakistan • ARY News official YouTube Live", "https://www.youtube.com/@ArynewsTvofficial/live"),
+        Pair("Pakistan • Geo News official YouTube Live", "https://www.youtube.com/@geonews/live"),
+        Pair("Pakistan • Samaa TV official YouTube Live", "https://www.youtube.com/@Samaatv/live"),
+        Pair("Pakistan • BOL News official YouTube Live", "https://www.youtube.com/@BOLNewsofficial/live"),
+        Pair("Pakistan • ARY News official website", "https://live.arynews.tv/pk/"),
         Pair("Pakistan • AVT Khyber official live", "https://avtkhyber.tv/khyber-tv-live-streaming/"),
-        Pair("Pakistan • PTV Sports Live", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Pair("Pakistan • PTV Sports official page", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Pair("India • DD News official YouTube Live", "https://www.youtube.com/@DDNewsOfficial/live"),
+        Pair("India • DD India official YouTube Live", "https://www.youtube.com/channel/UCGDQNvybfDDeGTf4GtigXaw/live"),
+        Pair("India • DD Sports official YouTube Live", "https://www.youtube.com/user/doordarshansports/live"),
+        Pair("India • Sansad TV official YouTube Live", "https://www.youtube.com/@SansadTV/live"),
         Pair("India • Prasar Bharati Live TV / DD", "https://prasarbharati.gov.in/en/live-tv/"),
         Pair("India • WAVES official OTT", "https://prasarbharati.gov.in/en/waves/"),
         Pair("India • Animal Planet HD English (JioTV; subscription/sign-in may be required)", "https://www.jiotv.com/live-channel/animal-planet-hd-world/286/just-animals/251004286016"),
         Pair("Saudi Arabia • Aloula / Saudi Broadcasting Authority", "https://aloula.sba.sa/"),
-        Pair("Bangladesh • BTV, BTV News, BTV Chattogram, Sangsad", "https://btvlive.gov.bd/")
+        Pair("Bangladesh • BTV official live", "https://btvlive.gov.bd/")
     )
 
     // Official portals are also inserted into the country lists as in-app web-player
     // fallbacks. These are broadcaster pages, not extracted/private stream URLs.
     val OFFICIAL_CHANNELS = listOf(
-        Triple("PTV News • Official", "PK", "https://moib.gov.pk/LiveStream"),
-        Triple("ARY News • Official", "PK", "https://live.arynews.tv/pk/"),
-        Triple("PTV Sports • Official", "PK", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Triple("PTV News • Official live page", "PK", "https://moib.gov.pk/LiveStream"),
+        Triple("ARY News • Official YouTube Live", "PK", "https://www.youtube.com/@ArynewsTvofficial/live"),
+        Triple("Geo News • Official YouTube Live", "PK", "https://www.youtube.com/@geonews/live"),
+        Triple("Samaa TV • Official YouTube Live", "PK", "https://www.youtube.com/@Samaatv/live"),
+        Triple("BOL News • Official YouTube Live", "PK", "https://www.youtube.com/@BOLNewsofficial/live"),
+        Triple("ARY News • Official website", "PK", "https://live.arynews.tv/pk/"),
+        Triple("PTV Sports • Official page", "PK", "https://www.ptv-sports.com.pk/live-streaming/"),
+        Triple("DD News • Official YouTube Live", "IN", "https://www.youtube.com/@DDNewsOfficial/live"),
+        Triple("DD India • Official YouTube Live", "IN", "https://www.youtube.com/channel/UCGDQNvybfDDeGTf4GtigXaw/live"),
+        Triple("DD Sports • Official YouTube Live", "IN", "https://www.youtube.com/user/doordarshansports/live"),
+        Triple("Sansad TV • Official YouTube Live", "IN", "https://www.youtube.com/@SansadTV/live"),
         Triple("Prasar Bharati Live TV • Official", "IN", "https://prasarbharati.gov.in/en/live-tv/"),
         Triple("WAVES • Official", "IN", "https://prasarbharati.gov.in/en/waves/"),
         Triple("BTV Live • Official", "BD", "https://btvlive.gov.bd/"),
