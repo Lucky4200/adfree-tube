@@ -45,6 +45,7 @@ object Config {
     // Official service links only; paid channels still require a valid subscription.
     // These entries are opened inside AdFree Tube's own TV player/WebView.
     val OFFICIAL_SERVICES = listOf(
+        Pair("Pakistan • PTV News official YouTube Live", "https://www.youtube.com/@ptvnewsofficial/live"),
         Pair("Pakistan • PTV News official live page", "https://moib.gov.pk/LiveStream"),
         Pair("Pakistan • ARY News official YouTube Live", "https://www.youtube.com/@ArynewsTvofficial/live"),
         Pair("Pakistan • Geo News official YouTube Live", "https://www.youtube.com/@geonews/live"),
@@ -53,7 +54,7 @@ object Config {
         Pair("Pakistan • ARY News official website", "https://live.arynews.tv/pk/"),
         Pair("Pakistan • AVT Khyber official live", "https://avtkhyber.tv/khyber-tv-live-streaming/"),
         Pair("Pakistan • PTV Sports official page", "https://www.ptv-sports.com.pk/live-streaming/"),
-        Pair("India • DD News official YouTube Live", "https://www.youtube.com/@DDNewsOfficial/live"),
+        Pair("India • DD News official YouTube Live", "https://www.youtube.com/@DDnews/live"),
         Pair("India • DD India official YouTube Live", "https://www.youtube.com/channel/UCGDQNvybfDDeGTf4GtigXaw/live"),
         Pair("India • DD Sports official YouTube Live", "https://www.youtube.com/user/doordarshansports/live"),
         Pair("India • Sansad TV official YouTube Live", "https://www.youtube.com/@SansadTV/live"),
@@ -67,6 +68,7 @@ object Config {
     // Official portals are also inserted into the country lists as in-app web-player
     // fallbacks. These are broadcaster pages, not extracted/private stream URLs.
     val OFFICIAL_CHANNELS = listOf(
+        Triple("PTV News • Official YouTube Live", "PK", "https://www.youtube.com/@ptvnewsofficial/live"),
         Triple("PTV News • Official live page", "PK", "https://moib.gov.pk/LiveStream"),
         Triple("ARY News • Official YouTube Live", "PK", "https://www.youtube.com/@ArynewsTvofficial/live"),
         Triple("Geo News • Official YouTube Live", "PK", "https://www.youtube.com/@geonews/live"),
