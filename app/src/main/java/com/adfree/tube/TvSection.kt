@@ -1141,7 +1141,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                         source.first to (body?.let { parseM3u(it, source.first) } ?: emptyList())
                     }
                 }
-                val results = pool.invokeAll(tasks, 45, java.util.concurrent.TimeUnit.SECONDS)
+                val results = pool.invokeAll(tasks, 90, java.util.concurrent.TimeUnit.SECONDS)
                 for (future in results) {
                     if (future.isCancelled) continue
                     try {
@@ -1335,7 +1335,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 val n = name
                 if (n != null &&
                     (line.startsWith("http://", true) || line.startsWith("https://", true)) &&
-                    !geoBlocked && !isTokenizedOrTemporary(line)) {
+                    !geoBlocked) {
                     out.add(
                         ParsedChannel(
                             n,
@@ -1484,7 +1484,7 @@ class TvSection(private val activity: Activity, private val isTv: Boolean, priva
                 override fun onPageFinished(view: WebView?, pageUrl: String?) {
                     super.onPageFinished(view, pageUrl)
                     if (current?.webPlayerUrls?.contains(url) == true) {
-                        status.text = "AVT Khyber official embedded player • use its Play control if prompted"
+                        status.text = "${current?.name ?: "Official channel"} • official live page inside AdFree Tube"
                     }
                 }
 
